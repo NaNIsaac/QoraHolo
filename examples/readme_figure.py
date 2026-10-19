@@ -53,6 +53,9 @@ rytov = qh.rytov(fields, backend=args.backend)
 plain = qh.reconstruct(rytov, estimated, geom, backend=args.backend)
 gp = qh.reconstruct(rytov, estimated, geom, iterations=20, backend=args.backend)
 elapsed = time.perf_counter() - t0
+t0 = time.perf_counter()
+tv = qh.reconstruct(rytov, estimated, geom, iterations=20, solver="tv", backend=args.backend)
+elapsed_tv = time.perf_counter() - t0
 
 truth = qh.render_phantom(cell, geom, N, N)
 z, y, x = (np.indices(truth.shape) - N // 2) * geom.pixel
@@ -64,22 +67,23 @@ def rmse(a):
 
 
 print(f"backend {args.backend}, pipeline time {elapsed:.2f} s (2 x {ANGLES} holograms, {N}^3)")
+print(f"FISTA-TV, 20 x 10 iterations: {elapsed_tv:.2f} s")
 print(f"largest illumination estimate error {illum_error:.2e} cycles/um")
-inner = plain[nucleus].mean(), gp[nucleus].mean()
-print(f"nucleus mean RI: truth 1.3750, plain {inner[0]:.4f}, GP {inner[1]:.4f}")
-print(f"RMSE vs phantom: plain {rmse(plain):.2e}, GP {rmse(gp):.2e}")
+for name, vol in [("plain", plain), ("GP", gp), ("TV", tv)]:
+    print(f"{name}: nucleus mean RI {vol[nucleus].mean():.4f} (truth 1.3750), RMSE {rmse(vol):.2e}")
 
 zc = N // 2 + round(0.5 / geom.pixel)
 yc = N // 2 + round(-1.0 / geom.pixel)
 crop = slice(N // 2 - 70, N // 2 + 70)
-fig, ax = plt.subplots(2, 4, figsize=(13, 6.6), constrained_layout=True)
+fig, ax = plt.subplots(2, 5, figsize=(16, 6.6), constrained_layout=True)
 ax[0, 0].imshow(holo[0, 200:328, 200:328], cmap="gray")
 ax[0, 0].set_title("hologram (detail)")
 ax[1, 0].imshow(rytov[0].imag[crop, crop], cmap="gray")
 ax[1, 0].set_title("unwrapped phase, 0 deg")
 vmin, vmax = geom.n_medium, 1.392
 im = None
-for col, (name, vol) in enumerate([("phantom", truth), ("Rytov ODT", plain), ("+ 20 GP", gp)], 1):
+volumes = [("phantom", truth), ("Rytov ODT", plain), ("+ 20 GP", gp), ("+ 20 FISTA-TV", tv)]
+for col, (name, vol) in enumerate(volumes, 1):
     ax[0, col].imshow(vol[zc, crop, crop], vmin=vmin, vmax=vmax, cmap="viridis")
     ax[0, col].set_title(f"{name}, x-y")
     im = ax[1, col].imshow(vol[crop, yc, crop], vmin=vmin, vmax=vmax, cmap="viridis")
