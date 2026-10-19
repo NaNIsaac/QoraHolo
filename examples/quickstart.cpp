@@ -15,7 +15,7 @@ int main() {
   const Backend backend = cuda_available() ? Backend::cuda : Backend::cpu;
 
   OdtOptions opt;
-  opt.gp_iterations = 20;
+  opt.iterations = 20;
   opt.backend = backend;
   const OdtResult r = reconstruct(rytov(ratio, backend), illum, geom, opt);
 

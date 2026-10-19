@@ -80,7 +80,7 @@ TEST_F(Cuda, ReconstructionMatchesCpu) {
        {Case{Mapping::gather, GpTransform::r2c}, Case{Mapping::scatter, GpTransform::r2c},
         Case{Mapping::gather, GpTransform::c2c}}) {
     OdtOptions cpu_opt;
-    cpu_opt.gp_iterations = 5;
+    cpu_opt.iterations = 5;
     cpu_opt.gp_transform = c.transform;
     OdtOptions gpu_opt = cpu_opt;
     gpu_opt.backend = Backend::cuda;
@@ -95,4 +95,19 @@ TEST_F(Cuda, ReconstructionMatchesCpu) {
     EXPECT_LT(relative_error(db, da), 1e-4);
     EXPECT_DOUBLE_EQ(a.filled, b.filled);
   }
+}
+
+TEST_F(Cuda, TvMatchesCpu) {
+  const auto illum = circular_scan(25, 0.9f, geom);
+  const auto fields = rytov(forward_fields(spheres, illum, geom, 64, ScatteringModel::rytov));
+  OdtOptions cpu_opt;
+  cpu_opt.iterations = 10;
+  cpu_opt.solver = Solver::tv;
+  OdtOptions gpu_opt = cpu_opt;
+  gpu_opt.backend = Backend::cuda;
+  Array3<float> da = reconstruct(fields, illum, geom, cpu_opt).ri;
+  Array3<float> db = reconstruct(fields, illum, geom, gpu_opt).ri;
+  for (auto& v : da.data) v -= geom.n_medium;
+  for (auto& v : db.data) v -= geom.n_medium;
+  EXPECT_LT(relative_error(db, da), 1e-4);
 }

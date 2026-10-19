@@ -73,7 +73,7 @@ void restore(std::vector<cfloat>& e, const HalfData& d) {
 
 // Gerchberg-Papoulis on half spectra. Returns the real potential, (nz, n, n).
 std::vector<float> gp_real(const HalfData& d, int nz, int n, int iterations) {
-  const float inv = 1.0f / (static_cast<float>(nz) * static_cast<float>(n) * n);
+  const float inv = 1.0f / (static_cast<float>(nz) * static_cast<float>(n) * static_cast<float>(n));
   std::vector<float> x(std::size_t(nz) * n * n);
   std::vector<cfloat> e = d.a;
   irfft3(e.data(), x.data(), nz, n, n, inv);
@@ -88,12 +88,95 @@ std::vector<float> gp_real(const HalfData& d, int nz, int n, int iterations) {
   return x;
 }
 
+// Dual variable of the TV proximal step, one array per axis (z, y, x).
+struct Dual {
+  std::vector<float> p[3];
+  std::vector<float> r[3];
+  explicit Dual(std::size_t size) {
+    for (int a = 0; a < 3; ++a) {
+      p[a].assign(size, 0.0f);
+      r[a].assign(size, 0.0f);
+    }
+  }
+};
+
+// x = argmin 0.5 |x - b|^2 + lambda TV(x), x >= 0, by `inner` FGP iterations started
+// from the dual of the previous call.
+void tv_prox(const float* b, float* x, Dual& d, const detail::Volume& v, float lambda, int inner) {
+  const std::ptrdiff_t total = std::ptrdiff_t(v.nz) * v.ny * v.nx;
+  const float step = 1.0f / (12.0f * lambda);
+  for (int a = 0; a < 3; ++a) d.r[a] = d.p[a];
+  const auto primal = [&](const std::vector<float>* q) {
+#pragma omp parallel for
+    for (std::ptrdiff_t i = 0; i < total; ++i) {
+      const int xx = static_cast<int>(i % v.nx);
+      const int yy = static_cast<int>((i / v.nx) % v.ny);
+      const int zz = static_cast<int>(i / (std::ptrdiff_t(v.nx) * v.ny));
+      x[i] = detail::tv_primal(
+          b[i], lambda, detail::tv_adjoint(q[0].data(), q[1].data(), q[2].data(), v, zz, yy, xx));
+    }
+  };
+  float t = 1.0f;
+  for (int k = 0; k < inner; ++k) {
+    primal(d.r);
+    const float t_next = detail::fista_t(t);
+    const float momentum = (t - 1.0f) / t_next;
+#pragma omp parallel for
+    for (std::ptrdiff_t i = 0; i < total; ++i) {
+      const int xx = static_cast<int>(i % v.nx);
+      const int yy = static_cast<int>((i / v.nx) % v.ny);
+      const int zz = static_cast<int>(i / (std::ptrdiff_t(v.nx) * v.ny));
+      float g[3];
+      detail::tv_gradient(x, v, zz, yy, xx, g);
+      float p[3] = {d.p[0][i], d.p[1][i], d.p[2][i]};
+      float r[3] = {d.r[0][i], d.r[1][i], d.r[2][i]};
+      detail::tv_dual_step(g, step, momentum, p, r);
+      for (int a = 0; a < 3; ++a) {
+        d.p[a][i] = p[a];
+        d.r[a][i] = r[a];
+      }
+    }
+    t = t_next;
+  }
+  primal(d.p);
+}
+
+// FISTA (Beck & Teboulle 2009) with step 1 on 0.5 |M F x - d|^2 + lambda TV(x), x >= 0. The
+// gradient step y - grad f(y) is the Gerchberg-Papoulis k-space step on the half spectrum.
+std::vector<float> tv_real(const HalfData& d, int nz, int n, int iterations, float lambda,
+                           int inner) {
+  const float inv = 1.0f / (static_cast<float>(nz) * static_cast<float>(n) * static_cast<float>(n));
+  const detail::Volume v{nz, n, n, n};
+  const std::size_t size = std::size_t(nz) * n * n;
+  std::vector<float> y(size);
+  std::vector<cfloat> e = d.a;
+  irfft3(e.data(), y.data(), nz, n, n, inv);
+  std::vector<float> x_prev = y;
+  std::vector<float> x(size);
+  Dual dual(size);
+  const auto total = static_cast<std::ptrdiff_t>(size);
+  float t = 1.0f;
+  for (int it = 0; it < iterations; ++it) {
+    rfft3(y.data(), e.data(), nz, n, n);
+    restore(e, d);
+    irfft3(e.data(), y.data(), nz, n, n, inv);
+    tv_prox(y.data(), x.data(), dual, v, lambda, inner);
+    const float t_next = detail::fista_t(t);
+    const float momentum = (t - 1.0f) / t_next;
+#pragma omp parallel for
+    for (std::ptrdiff_t i = 0; i < total; ++i) y[i] = x[i] + momentum * (x[i] - x_prev[i]);
+    std::swap(x, x_prev);
+    t = t_next;
+  }
+  return x_prev;
+}
+
 }  // namespace
 
 OdtResult reconstruct(const Array3<cfloat>& rytov_fields, std::span<const Illumination> illum,
                       const detail::OdtGrid& g, const Geometry& geometry, const OdtOptions& options,
                       OdtTimings* timings) {
-  const int gp_iterations = options.gp_iterations;
+  const int iterations = options.iterations;
   OdtTimings t_local;
   OdtTimings& tm = timings ? *timings : t_local;
   Stopwatch watch;
@@ -147,16 +230,20 @@ OdtResult reconstruct(const Array3<cfloat>& rytov_fields, std::span<const Illumi
   OdtResult result;
   result.filled = static_cast<double>(filled) / static_cast<double>(potential.size());
 
-  if (gp_iterations > 0 && options.gp_transform == GpTransform::r2c) {
+  const bool tv = options.solver == Solver::tv;
+  if (iterations > 0 && (tv || options.gp_transform == GpTransform::r2c)) {
     const HalfData d = hermitian_data(potential, weight);
     const std::size_t peak = potential.size() * (sizeof(cfloat) + sizeof(float)) +
                              d.a.size() * (sizeof(cfloat) + sizeof(std::uint8_t));
     potential = {};
     weight = {};
-    std::vector<float> x = gp_real(d, nz, n, gp_iterations);
-    tm.bytes = std::max(
-        peak, d.a.size() * (2 * sizeof(cfloat) + sizeof(std::uint8_t)) + x.size() * sizeof(float));
-    tm.gp = watch.lap();
+    std::vector<float> x =
+        tv ? tv_real(d, nz, n, iterations, options.tv_weight * k0 * k0, options.tv_inner)
+           : gp_real(d, nz, n, iterations);
+    // Loop phase: data, spectrum and x; TV adds y, x_prev and a dual of six volumes.
+    tm.bytes = std::max(peak, d.a.size() * (2 * sizeof(cfloat) + sizeof(std::uint8_t)) +
+                                  x.size() * sizeof(float) * (tv ? 9 : 1));
+    tm.solve = watch.lap();
 #pragma omp parallel for
     for (std::ptrdiff_t i = 0; i < total; ++i) {
       x[i] = detail::index_from_potential(x[i], 0.0f, nm2, inv_k02);
@@ -174,11 +261,11 @@ OdtResult reconstruct(const Array3<cfloat>& rytov_fields, std::span<const Illumi
   const std::vector<std::size_t> axes{0, 1, 2};
   const float inv = 1.0f / static_cast<float>(potential.size());
   tm.bytes = potential.size() * (sizeof(cfloat) + sizeof(float));
-  if (gp_iterations > 0) {
+  if (iterations > 0) {
     const Array3<cfloat> measured = potential;
     tm.bytes += measured.size() * sizeof(cfloat);
     fft(potential.data.data(), shape, axes, false, inv);
-    for (int it = 0; it < gp_iterations; ++it) {
+    for (int it = 0; it < iterations; ++it) {
       // n >= n_m and a non-absorbing sample: the potential is real and non-negative.
 #pragma omp parallel for
       for (std::ptrdiff_t i = 0; i < total; ++i) {
@@ -194,7 +281,7 @@ OdtResult reconstruct(const Array3<cfloat>& rytov_fields, std::span<const Illumi
   } else {
     fft(potential.data.data(), shape, axes, false, inv);
   }
-  tm.gp = watch.lap();
+  tm.solve = watch.lap();
 
   result.ri = Array3<float>(nz, n, n);
 #pragma omp parallel for

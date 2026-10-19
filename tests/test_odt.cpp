@@ -50,7 +50,7 @@ TEST(Odt, RecoversSphereIndexAndGpHelps) {
 
   const auto plain = reconstruct(fields, illum, kGeom);
   OdtOptions gp;
-  gp.gp_iterations = 20;
+  gp.iterations = 20;
   const auto refined = reconstruct(fields, illum, kGeom, gp);
 
   const auto m0 = measure(plain.ri, truth, kSphere[0]);
@@ -67,7 +67,7 @@ TEST(Odt, RealGpMatchesComplexGp) {
   const auto illum = circular_scan(49, 0.9f, kGeom);
   const auto fields = rytov(forward_fields(kSphere, illum, kGeom, kN, ScatteringModel::rytov));
   OdtOptions real;
-  real.gp_iterations = 10;
+  real.iterations = 10;
   OdtOptions complex = real;
   complex.gp_transform = GpTransform::c2c;
   const auto a = reconstruct(fields, illum, kGeom, real);
@@ -83,4 +83,19 @@ TEST(Odt, RealGpMatchesComplexGp) {
   // Measured when written: 5e-6 relative.
   EXPECT_LT(std::sqrt(num / den), 1e-4);
   EXPECT_DOUBLE_EQ(a.filled, b.filled);
+}
+
+TEST(Odt, TvReducesErrorAgainstGp) {
+  const auto illum = circular_scan(49, 0.9f, kGeom);
+  const auto fields = rytov(forward_fields(kSphere, illum, kGeom, kN, ScatteringModel::rytov));
+  const auto truth = render_phantom(kSphere, kGeom, kN, kN);
+  OdtOptions gp;
+  gp.iterations = 20;
+  OdtOptions tv = gp;
+  tv.solver = Solver::tv;
+  const auto m_gp = measure(reconstruct(fields, illum, kGeom, gp).ri, truth, kSphere[0]);
+  const auto m_tv = measure(reconstruct(fields, illum, kGeom, tv).ri, truth, kSphere[0]);
+  // Measured when written: rmse 1.17e-3 (GP) and 1.01e-3 (TV), TV inner mean 1.3600.
+  EXPECT_NEAR(m_tv.inner_mean, 1.36, 4e-3);
+  EXPECT_LT(m_tv.rmse, m_gp.rmse);
 }

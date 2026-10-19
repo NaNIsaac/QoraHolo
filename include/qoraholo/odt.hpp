@@ -28,6 +28,15 @@ struct Illumination {
 // summation order; the choice only matters on CUDA.
 enum class Mapping { gather, scatter };
 
+// Missing-cone solver run for OdtOptions::iterations steps after the Ewald mapping.
+enum class Solver {
+  // Gerchberg-Papoulis: n >= n_medium in real space, measured voxels reset in k-space.
+  gerchberg_papoulis,
+  // FISTA on 0.5 |M F x - d|^2 + tv_weight * k0^2 * TV(x) with x >= 0, x the scattering
+  // potential, M the measured voxels (Beck & Teboulle 2009; Lim et al. 2015 for ODT).
+  tv,
+};
+
 // 3D transforms of the Gerchberg-Papoulis loop. r2c: the constrained potential is real, so the
 // loop runs on half spectra; the iterates equal those of c2c, but the returned volume is the
 // real part only (no absorption). c2c: full complex spectra, the imaginary part of the last
@@ -35,9 +44,14 @@ enum class Mapping { gather, scatter };
 enum class GpTransform { r2c, c2c };
 
 struct OdtOptions {
-  int nz = 0;             // axial voxels; 0: field side
-  int gp_iterations = 0;  // Gerchberg-Papoulis iterations with n >= n_medium
-  GpTransform gp_transform = GpTransform::r2c;
+  int nz = 0;          // axial voxels; 0: field side
+  int iterations = 0;  // missing-cone iterations; 0: plain Rytov ODT
+  Solver solver = Solver::gerchberg_papoulis;
+  GpTransform gp_transform = GpTransform::r2c;  // TV always works on half spectra
+  // TV weight for the potential divided by k0^2, i.e. for n^2 - n_medium^2, so it does not
+  // depend on the wavelength.
+  float tv_weight = 1e-2f;
+  int tv_inner = 10;  // dual iterations of the TV proximal step per outer iteration
   Mapping mapping = Mapping::gather;
   Backend backend = Backend::cpu;
 };

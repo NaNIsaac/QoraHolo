@@ -47,7 +47,7 @@ class CpuPipeline final : public Pipeline::Impl {
     timings.fft2 = odt.fft2;
     timings.mapping = odt.mapping;
     timings.normalize = odt.normalize;
-    timings.solve = odt.gp;
+    timings.solve = odt.solve;
     timings.finish = odt.finish;
     timings.total = since(t0);
   }

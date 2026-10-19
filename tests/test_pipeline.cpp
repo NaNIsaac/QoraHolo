@@ -36,7 +36,7 @@ struct Data {
     options.field.output_size = kHolo / 2;
     options.illuminations = illum;
     options.geometry = geom;
-    options.odt.gp_iterations = 5;
+    options.odt.iterations = 5;
   }
 
   // The same stages through the per-call functions on the CPU.

@@ -86,6 +86,72 @@ QH_HD void hermitian_restore(float are, float aim, int hits, float& re, float& i
   im = aim + b * im;
 }
 
+// Volume of nz * ny rows of nx values, rows `pitch` values apart (pitch > nx for the padded
+// real layout of in-place R2C transforms).
+struct Volume {
+  int nz;
+  int ny;
+  int nx;
+  int pitch;
+  QH_HD long long at(int z, int y, int x) const {
+    return (static_cast<long long>(z) * ny + y) * pitch + x;
+  }
+};
+
+// Total-variation proximal step by fast gradient projection on the dual (Beck & Teboulle 2009,
+// algorithm FGP): min_x 0.5 |x - b|^2 + lambda TV(x) subject to x >= 0, isotropic TV with
+// forward differences. The dual variable p holds one vector per voxel; its component along an
+// axis is zero on the last plane of that axis.
+//
+// L(p) at voxel i: sum over axes of p_a(i) - p_a(i - e_a), the negative divergence.
+QH_HD float tv_adjoint(const float* pz, const float* py, const float* px, const Volume& v, int z,
+                       int y, int x) {
+  const long long i = v.at(z, y, x);
+  float s = 0;
+  if (z < v.nz - 1) s += pz[i];
+  if (z > 0) s -= pz[v.at(z - 1, y, x)];
+  if (y < v.ny - 1) s += py[i];
+  if (y > 0) s -= py[v.at(z, y - 1, x)];
+  if (x < v.nx - 1) s += px[i];
+  if (x > 0) s -= px[i - 1];
+  return s;
+}
+
+// Primal point for dual p: max(b - lambda L(p), 0).
+QH_HD float tv_primal(float b, float lambda, float adjoint) {
+  const float x = b - lambda * adjoint;
+  return x > 0.0f ? x : 0.0f;
+}
+
+// One FGP dual step at a voxel. g = L^T z there (z(i) - z(i + e_a) per axis), step = 1 / (12
+// lambda) since |L|^2 <= 12 in 3D, momentum = (t_k - 1) / t_{k+1}. Updates p and r in place.
+QH_HD void tv_dual_step(const float g[3], float step, float momentum, float p[3], float r[3]) {
+  float q[3];
+  float norm2 = 0;
+  for (int a = 0; a < 3; ++a) {
+    q[a] = r[a] + step * g[a];
+    norm2 += q[a] * q[a];
+  }
+  const float scale = norm2 > 1.0f ? 1.0f / sqrtf(norm2) : 1.0f;
+  for (int a = 0; a < 3; ++a) {
+    const float next = q[a] * scale;
+    r[a] = next + momentum * (next - p[a]);
+    p[a] = next;
+  }
+}
+
+// L^T z at a voxel: forward differences z(i) - z(i + e_a), zero on the last plane of each axis.
+QH_HD void tv_gradient(const float* zv, const Volume& v, int z, int y, int x, float g[3]) {
+  const long long i = v.at(z, y, x);
+  const float c = zv[i];
+  g[0] = z < v.nz - 1 ? c - zv[v.at(z + 1, y, x)] : 0.0f;
+  g[1] = y < v.ny - 1 ? c - zv[v.at(z, y + 1, x)] : 0.0f;
+  g[2] = x < v.nx - 1 ? c - zv[i + 1] : 0.0f;
+}
+
+// t_{k+1} of FISTA and FGP.
+QH_HD float fista_t(float t) { return 0.5f * (1.0f + sqrtf(1.0f + 4.0f * t * t)); }
+
 // Real part of the principal sqrt(n_m^2 + O / k0^2): refractive index from scattering potential.
 QH_HD float index_from_potential(float re, float im, float nm2, float inv_k02) {
   const float a = nm2 + re * inv_k02;

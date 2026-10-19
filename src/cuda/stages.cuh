@@ -79,8 +79,8 @@ class Unwrapper {
   FftPlan* plan_list_[2];
 };
 
-// Rytov fields -> refractive index: 2D FFT, Ewald mapping, normalisation, Gerchberg-Papoulis
-// (C2C, or R2C/C2R on half spectra), 3D inverse FFT, potential -> index.
+// Rytov fields -> refractive index: 2D FFT, Ewald mapping, normalisation, a missing-cone
+// solver (Gerchberg-Papoulis on C2C or R2C/C2R spectra, or FISTA-TV), potential -> index.
 class OdtSolver {
  public:
   OdtSolver(const detail::OdtGrid& grid, int count, const Geometry& geometry,
@@ -91,7 +91,7 @@ class OdtSolver {
   void set_illuminations(std::span<const Illumination> illum);
 
   // Marks recorded by run() after each of its stages, in this order.
-  enum Mark { fft2, mapping, normalize, gp, finish, marks };
+  enum Mark { fft2, mapping, normalize, solve, finish, marks };
 
   // fields: (count, n, n) Rytov fields on the device, overwritten by their spectra. clock marks
   // first + Mark when given.
@@ -108,9 +108,12 @@ class OdtSolver {
  private:
   detail::OdtGrid g_;
   int count_;
-  int gp_iterations_;
+  int iterations_;
   Mapping mapping_;
+  bool tv_;
   bool real_;
+  int tv_inner_;
+  float lambda_ = 0;
   std::size_t half_;
   float nm2_;
   float inv_k02_ = 0;
@@ -120,6 +123,7 @@ class OdtSolver {
   DeviceBuffer<float> weight_;
   DeviceBuffer<float2> measured_;
   DeviceBuffer<std::uint8_t> hits_;
+  DeviceBuffer<float> tv_buffers_;
   DeviceBuffer<unsigned long long> filled_;
   const float* index_ = nullptr;
   std::size_t pitch_ = 0;

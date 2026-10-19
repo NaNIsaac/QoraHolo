@@ -33,7 +33,7 @@ struct OdtTimings {
   double fft2 = 0;
   double mapping = 0;
   double normalize = 0;
-  double gp = 0;
+  double solve = 0;
   double finish = 0;
   double download = 0;
 };

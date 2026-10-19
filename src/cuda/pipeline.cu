@@ -107,8 +107,8 @@ class CudaPipeline final : public Pipeline::Impl {
     timings.fft2 = clock_.ms(rytov, o + OdtSolver::fft2);
     timings.mapping = clock_.ms(o + OdtSolver::fft2, o + OdtSolver::mapping);
     timings.normalize = clock_.ms(o + OdtSolver::mapping, o + OdtSolver::normalize);
-    timings.solve = clock_.ms(o + OdtSolver::normalize, o + OdtSolver::gp);
-    timings.finish = clock_.ms(o + OdtSolver::gp, o + OdtSolver::finish);
+    timings.solve = clock_.ms(o + OdtSolver::normalize, o + OdtSolver::solve);
+    timings.finish = clock_.ms(o + OdtSolver::solve, o + OdtSolver::finish);
     timings.download = clock_.ms(o + OdtSolver::finish, downloaded);
     timings.total =
         std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();

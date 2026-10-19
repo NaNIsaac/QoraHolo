@@ -151,15 +151,73 @@ __global__ void to_index_real(float* x, std::size_t total, float scale, float nm
   x[i] = detail::index_from_potential(x[i] * scale, 0.0f, nm2, inv_k02);
 }
 
+__global__ void scale_real(float* x, std::size_t total, float scale) {
+  const std::size_t i = grid_index();
+  if (i >= total) return;
+  x[i] *= scale;
+}
+
+// Voxel i of the valid nz * ny * nx region and its offset in the padded layout.
+struct Voxel {
+  int z, y, x;
+  long long at;
+};
+__device__ __forceinline__ bool voxel(const detail::Volume& v, Voxel& out) {
+  const std::size_t i = grid_index();
+  if (i >= std::size_t(v.nz) * v.ny * v.nx) return false;
+  out.x = static_cast<int>(i % v.nx);
+  out.y = static_cast<int>((i / v.nx) % v.ny);
+  out.z = static_cast<int>(i / (std::size_t(v.nx) * v.ny));
+  out.at = v.at(out.z, out.y, out.x);
+  return true;
+}
+
+// out = max(scale * b - lambda L(q), 0); q holds three components `stride` floats apart.
+__global__ void tv_primal_kernel(const float* b, float scale, const float* q, std::size_t stride,
+                                 float lambda, float* out, detail::Volume v) {
+  Voxel w{};
+  if (!voxel(v, w)) return;
+  const float adj = detail::tv_adjoint(q, q + stride, q + 2 * stride, v, w.z, w.y, w.x);
+  out[w.at] = detail::tv_primal(scale * b[w.at], lambda, adj);
+}
+
+__global__ void tv_dual_kernel(const float* z, float step, float momentum, float* p, float* r,
+                               std::size_t stride, detail::Volume v) {
+  Voxel w{};
+  if (!voxel(v, w)) return;
+  float g[3];
+  detail::tv_gradient(z, v, w.z, w.y, w.x, g);
+  float pv[3];
+  float rv[3];
+  for (int a = 0; a < 3; ++a) {
+    pv[a] = p[a * stride + w.at];
+    rv[a] = r[a * stride + w.at];
+  }
+  detail::tv_dual_step(g, step, momentum, pv, rv);
+  for (int a = 0; a < 3; ++a) {
+    p[a * stride + w.at] = pv[a];
+    r[a * stride + w.at] = rv[a];
+  }
+}
+
+__global__ void fista_momentum(const float* x, const float* x_prev, float momentum, float* y,
+                               detail::Volume v) {
+  Voxel w{};
+  if (!voxel(v, w)) return;
+  y[w.at] = x[w.at] + momentum * (x[w.at] - x_prev[w.at]);
+}
+
 }  // namespace
 
 OdtSolver::OdtSolver(const OdtGrid& g, int count, const Geometry& geometry,
                      const OdtOptions& options)
     : g_(g),
       count_(count),
-      gp_iterations_(options.gp_iterations),
+      iterations_(options.iterations),
       mapping_(options.mapping),
-      real_(options.gp_iterations > 0 && options.gp_transform == GpTransform::r2c),
+      tv_(options.iterations > 0 && options.solver == Solver::tv),
+      real_(tv_ || (options.iterations > 0 && options.gp_transform == GpTransform::r2c)),
+      tv_inner_(options.tv_inner),
       half_(std::size_t(g.nz) * g.n * (g.n / 2 + 1)),
       nm2_(geometry.n_medium * geometry.n_medium),
       illum_(count),
@@ -167,12 +225,15 @@ OdtSolver::OdtSolver(const OdtGrid& g, int count, const Geometry& geometry,
       // the hit-count buffer; both are free once the mapping is folded into a and hits.
       potential_(std::size_t(g.nz) * g.n * g.n),
       weight_(real_ ? std::max(potential_.size(), 2 * half_) : potential_.size()),
-      measured_(gp_iterations_ > 0 && !real_ ? potential_.size() : 0),
+      measured_(iterations_ > 0 && !real_ ? potential_.size() : 0),
       hits_(real_ ? half_ : 0),
+      // TV: z, x_prev and the dual p, r (three components each), all in the padded layout.
+      tv_buffers_(tv_ ? 8 * 2 * half_ : 0),
       filled_(1),
       plan2_(2, std::array{g.n, g.n}.data(), count, CUFFT_C2C) {
   const float k0 = 2.0f * std::numbers::pi_v<float> / geometry.wavelength;
   inv_k02_ = 1.0f / (k0 * k0);
+  lambda_ = options.tv_weight * k0 * k0;
   const std::array dims{g.nz, g.n, g.n};
   plan_list_.push_back(&plan2_);
   if (real_) {
@@ -210,7 +271,7 @@ void OdtSolver::set_illuminations(std::span<const Illumination> illum) {
 
 std::size_t OdtSolver::bytes() const {
   return illum_.bytes() + potential_.bytes() + weight_.bytes() + measured_.bytes() + hits_.bytes() +
-         filled_.bytes();
+         tv_buffers_.bytes() + filled_.bytes();
 }
 
 void OdtSolver::run(float2* fields, StageClock* clock, int first) {
@@ -254,14 +315,57 @@ void OdtSolver::run(float2* fields, StageClock* clock, int first) {
     check(cudaMemcpyAsync(e, a, half_ * sizeof(float2), cudaMemcpyDeviceToDevice, stream_),
           "copy data");
     c2r_->c2r(e, x);
-    for (int it = 0; it < gp_iterations_; ++it) {
+    if (tv_) {
+      // FISTA with step 1: the gradient step is the k-space restore, the proximal step is FGP
+      // on the dual (p, r), warm-started from the previous outer iteration.
+      const detail::Volume v{g_.nz, g_.n, g_.n, static_cast<int>(2 * (g_.n / 2 + 1))};
+      const unsigned vgrid = blocks_for(total);
+      float* z = tv_buffers_.get();
+      float* x_prev = z + padded;
+      float* p = z + 2 * padded;
+      float* r = z + 5 * padded;
+      check(cudaMemsetAsync(p, 0, 3 * padded * sizeof(float), stream_), "cudaMemset");
+      scale_real<<<blocks_for(padded), 256, 0, stream_>>>(x, padded, inv);
+      check(cudaMemcpyAsync(x_prev, x, padded * sizeof(float), cudaMemcpyDeviceToDevice, stream_),
+            "copy x");
+      const float step = 1.0f / (12.0f * lambda_);
+      float t = 1.0f;
+      for (int it = 0; it < iterations_; ++it) {
+        r2c_->r2c(x, e);
+        restore_half<<<hgrid, 256, 0, stream_>>>(e, a, hits_.get(), half_);
+        c2r_->c2r(e, x);
+        check(cudaMemcpyAsync(r, p, 3 * padded * sizeof(float), cudaMemcpyDeviceToDevice, stream_),
+              "copy dual");
+        float tk = 1.0f;
+        for (int k = 0; k < tv_inner_; ++k) {
+          tv_primal_kernel<<<vgrid, 256, 0, stream_>>>(x, inv, r, padded, lambda_, z, v);
+          const float tn = detail::fista_t(tk);
+          tv_dual_kernel<<<vgrid, 256, 0, stream_>>>(z, step, (tk - 1.0f) / tn, p, r, padded, v);
+          tk = tn;
+        }
+        tv_primal_kernel<<<vgrid, 256, 0, stream_>>>(x, inv, p, padded, lambda_, z, v);
+        const float tn = detail::fista_t(t);
+        fista_momentum<<<vgrid, 256, 0, stream_>>>(z, x_prev, (t - 1.0f) / tn, x, v);
+        std::swap(z, x_prev);
+        t = tn;
+      }
+      check_launch("fista-tv");
+      mark(Mark::solve);
+      to_index_real<<<blocks_for(padded), 256, 0, stream_>>>(x_prev, padded, 1.0f, nm2_, inv_k02_);
+      check_launch("to_index");
+      index_ = x_prev;
+      pitch_ = v.pitch;
+      mark(Mark::finish);
+      return;
+    }
+    for (int it = 0; it < iterations_; ++it) {
       nonnegative_real<<<blocks_for(padded), 256, 0, stream_>>>(x, padded, inv);
       r2c_->r2c(x, e);
       restore_half<<<hgrid, 256, 0, stream_>>>(e, a, hits_.get(), half_);
       c2r_->c2r(e, x);
     }
     check_launch("gerchberg-papoulis");
-    mark(Mark::gp);
+    mark(Mark::solve);
     to_index_real<<<blocks_for(padded), 256, 0, stream_>>>(x, padded, inv, nm2_, inv_k02_);
     check_launch("to_index");
     index_ = x;
@@ -270,11 +374,11 @@ void OdtSolver::run(float2* fields, StageClock* clock, int first) {
     return;
   }
 
-  if (gp_iterations_ > 0) {
+  if (iterations_ > 0) {
     check(cudaMemcpyAsync(measured_.get(), potential_.get(), potential_.bytes(),
                           cudaMemcpyDeviceToDevice, stream_),
           "copy measured");
-    for (int it = 0; it < gp_iterations_; ++it) {
+    for (int it = 0; it < iterations_; ++it) {
       plan3_->inverse(potential_.get());
       nonnegative<<<grid, 256, 0, stream_>>>(potential_.get(), total, inv);
       plan3_->forward(potential_.get());
@@ -284,7 +388,7 @@ void OdtSolver::run(float2* fields, StageClock* clock, int first) {
     check_launch("gerchberg-papoulis");
   }
   plan3_->inverse(potential_.get());
-  mark(Mark::gp);
+  mark(Mark::solve);
 
   // The hit counts are no longer needed; the index goes into their buffer.
   to_index<<<grid, 256, 0, stream_>>>(potential_.get(), weight_.get(), total, inv, nm2_, inv_k02_);
@@ -342,8 +446,8 @@ OdtResult reconstruct(const Array3<cfloat>& rytov_fields, std::span<const Illumi
     timings->fft2 = clock.ms(uploaded, s + OdtSolver::fft2);
     timings->mapping = clock.ms(s + OdtSolver::fft2, s + OdtSolver::mapping);
     timings->normalize = clock.ms(s + OdtSolver::mapping, s + OdtSolver::normalize);
-    timings->gp = clock.ms(s + OdtSolver::normalize, s + OdtSolver::gp);
-    timings->finish = clock.ms(s + OdtSolver::gp, s + OdtSolver::finish);
+    timings->solve = clock.ms(s + OdtSolver::normalize, s + OdtSolver::solve);
+    timings->finish = clock.ms(s + OdtSolver::solve, s + OdtSolver::finish);
     timings->download = clock.ms(s + OdtSolver::finish, downloaded);
   }
   return result;
