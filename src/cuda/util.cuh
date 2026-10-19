@@ -123,15 +123,20 @@ class StageClock {
   std::vector<Event> events_;
 };
 
+// Advanced data layout of one side of a cuFFT plan (cufftMakePlanMany's embed, stride, dist).
+// At namespace scope because gcc rejects a nested struct with member initializers as a
+// default argument inside its enclosing class.
+struct FftLayout {
+  const int* embed = nullptr;  // nullptr: dense
+  int stride = 1;
+  int dist = 0;
+};
+
 // cuFFT plan created without its own work area. Plans that run one after another on the same
 // stream can then share a single area sized for the largest of them (FftWorkArea).
 class FftPlan {
  public:
-  struct Layout {
-    const int* embed = nullptr;  // nullptr: dense
-    int stride = 1;
-    int dist = 0;
-  };
+  using Layout = FftLayout;
 
   FftPlan(int rank, const int* dims, int batch, cufftType type, Layout in = {}, Layout out = {}) {
     check(cufftCreate(&h_), "cufftCreate");

@@ -103,8 +103,9 @@ fields = qh.field_ratio(
 )
 ri = qh.reconstruct(qh.rytov(fields), illuminations, geom, iterations=20, backend="cuda")
 
-p = qh.Pipeline(49, 512, illuminations=illuminations, geometry=geom, iterations=20,
-                backend="cuda", **opts)
+p = qh.Pipeline(
+    49, 512, illuminations=illuminations, geometry=geom, iterations=20, backend="cuda", **opts
+)
 p.set_background(backgrounds)
 ri = p.run(holograms)  # p.timings: milliseconds per stage of the last run
 ```
