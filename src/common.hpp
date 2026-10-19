@@ -1,0 +1,69 @@
+#pragma once
+
+// Index and physics helpers shared by the CPU and CUDA backends, so both evaluate the same
+// expressions in the same order.
+
+#include <cmath>
+
+#ifdef __CUDACC__
+#define QH_HD __host__ __device__ __forceinline__
+#else
+#define QH_HD inline
+#endif
+
+namespace qoraholo::detail {
+
+inline constexpr float kPi = 3.14159265358979323846f;
+
+// (-1)^i for integer i.
+QH_HD float parity(int i) { return (i & 1) ? -1.0f : 1.0f; }
+
+// Signed frequency index of DFT bin k of an n-point transform.
+QH_HD int signed_bin(int k, int n) { return k < n / 2 ? k : k - n; }
+
+// Makhoul reordering for a DCT-II of length n: x[i] goes to v[dct_position(i, n)].
+QH_HD int dct_position(int i, int n) { return (i & 1) ? n - 1 - (i >> 1) : (i >> 1); }
+
+// Eigenvalue of the 5-point Neumann Laplacian for DCT-II mode (ky, kx).
+QH_HD float neumann_eigenvalue(int ky, int kx, int ny, int nx) {
+  return 2.0f * cosf(kPi * static_cast<float>(ky) / static_cast<float>(ny)) +
+         2.0f * cosf(kPi * static_cast<float>(kx) / static_cast<float>(nx)) - 4.0f;
+}
+
+QH_HD float wrap_phase(float p) { return p - 2.0f * kPi * floorf((p + kPi) / (2.0f * kPi)); }
+
+// Constants of the k-space grid used by the Ewald mapping. Frequencies in cycles / um.
+struct OdtGrid {
+  int n;       // lateral side of fields and volume
+  int nz;      // axial side of the volume
+  float df;    // lateral frequency step, 1 / (n * pixel)
+  float dfz;   // axial frequency step, 1 / (nz * pixel)
+  float fm2;   // (n_medium / wavelength)^2
+  float fna2;  // (na / wavelength)^2
+  float gain;  // 4 pi / pixel; a mapped value is -i * gain * nu_z * spectrum
+};
+
+struct EwaldTarget {
+  int kz;     // axial bin, wrapped to [0, nz)
+  float nuz;  // axial frequency of the scattered wave
+};
+
+// Where the spectrum value at lateral bin (ky, kx) of an illumination with frequency
+// (fiy, fix, fiz) lands in 3D k-space: the nearest axial bin. Linear splitting between two bins
+// with per-voxel normalisation was tried and copies the value up to a full bin away, which near
+// the cap apex (where the spectrum of a cell-sized object changes sign within a few bins)
+// inflated those voxels by tens of percent. Returns false outside the pupil or the grid.
+QH_HD bool ewald_target(const OdtGrid& g, int ky, int kx, float fiy, float fix, float fiz,
+                        EwaldTarget& t) {
+  const float fy = static_cast<float>(signed_bin(ky, g.n)) * g.df + fiy;
+  const float fx = static_cast<float>(signed_bin(kx, g.n)) * g.df + fix;
+  const float rho2 = fy * fy + fx * fx;
+  if (rho2 > g.fna2 || rho2 >= g.fm2) return false;
+  t.nuz = sqrtf(g.fm2 - rho2);
+  const int k = static_cast<int>(floorf((t.nuz - fiz) / g.dfz + 0.5f));
+  if (k < -g.nz / 2 || k >= g.nz / 2) return false;
+  t.kz = k < 0 ? k + g.nz : k;
+  return true;
+}
+
+}  // namespace qoraholo::detail
