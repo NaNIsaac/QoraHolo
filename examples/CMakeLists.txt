@@ -1,0 +1,2 @@
+add_executable(qoraholo_quickstart quickstart.cpp)
+target_link_libraries(qoraholo_quickstart PRIVATE qoraholo qoraholo_warnings)

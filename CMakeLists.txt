@@ -4,6 +4,7 @@ project(qoraholo VERSION 0.1.0 LANGUAGES CXX)
 option(QORAHOLO_CUDA "Build the CUDA backend" OFF)
 option(QORAHOLO_BUILD_TESTS "Build the GoogleTest suite" ${PROJECT_IS_TOP_LEVEL})
 option(QORAHOLO_BUILD_BENCH "Build the benchmark" ${PROJECT_IS_TOP_LEVEL})
+option(QORAHOLO_BUILD_EXAMPLES "Build the C++ examples" ${PROJECT_IS_TOP_LEVEL})
 option(QORAHOLO_BUILD_PYTHON "Build the nanobind module" OFF)
 option(QORAHOLO_WERROR "Treat warnings as errors" OFF)
 
@@ -86,6 +87,10 @@ endif()
 
 if(QORAHOLO_BUILD_BENCH)
   add_subdirectory(bench)
+endif()
+
+if(QORAHOLO_BUILD_EXAMPLES)
+  add_subdirectory(examples)
 endif()
 
 if(QORAHOLO_BUILD_PYTHON)

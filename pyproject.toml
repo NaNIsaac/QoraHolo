@@ -32,6 +32,7 @@ sdist.exclude = ["build", ".github"]
 QORAHOLO_BUILD_PYTHON = "ON"
 QORAHOLO_BUILD_TESTS = "OFF"
 QORAHOLO_BUILD_BENCH = "OFF"
+QORAHOLO_BUILD_EXAMPLES = "OFF"
 
 [tool.pytest.ini_options]
 testpaths = ["python/tests"]
