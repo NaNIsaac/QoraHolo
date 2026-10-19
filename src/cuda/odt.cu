@@ -287,6 +287,7 @@ void OdtSolver::run(float2* fields, StageClock* clock, int first) {
 
   potential_.zero(stream_);
   check(cudaMemsetAsync(weight_.get(), 0, total * sizeof(float), stream_), "cudaMemset");
+  mark(Mark::clear);
   if (mapping_ == Mapping::gather) {
     map_gather<<<blocks_for(plane, 128), 128, 0, stream_>>>(fields, illum_.get(), count_, g_,
                                                             potential_.get(), weight_.get());
@@ -444,7 +445,8 @@ OdtResult reconstruct(const Array3<cfloat>& rytov_fields, std::span<const Illumi
     timings->bytes = free_before > free_after ? free_before - free_after : 0;
     timings->upload = clock.ms(start, uploaded);
     timings->fft2 = clock.ms(uploaded, s + OdtSolver::fft2);
-    timings->mapping = clock.ms(s + OdtSolver::fft2, s + OdtSolver::mapping);
+    timings->clear = clock.ms(s + OdtSolver::fft2, s + OdtSolver::clear);
+    timings->mapping = clock.ms(s + OdtSolver::clear, s + OdtSolver::mapping);
     timings->normalize = clock.ms(s + OdtSolver::mapping, s + OdtSolver::normalize);
     timings->solve = clock.ms(s + OdtSolver::normalize, s + OdtSolver::solve);
     timings->finish = clock.ms(s + OdtSolver::solve, s + OdtSolver::finish);

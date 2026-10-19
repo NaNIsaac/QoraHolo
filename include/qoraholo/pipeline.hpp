@@ -33,6 +33,7 @@ struct PipelineTimings {
   double fields = 0;
   double rytov = 0;
   double fft2 = 0;
+  double clear = 0;  // CUDA: zeroing the volume before the mapping; on CPU inside mapping
   double mapping = 0;
   double normalize = 0;
   double solve = 0;

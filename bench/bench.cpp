@@ -163,9 +163,9 @@ int main(int argc, char** argv) {
       return median(v);
     };
     OdtTimings out = runs.back();
-    for (auto f :
-         {&OdtTimings::setup, &OdtTimings::upload, &OdtTimings::fft2, &OdtTimings::mapping,
-          &OdtTimings::normalize, &OdtTimings::solve, &OdtTimings::finish, &OdtTimings::download}) {
+    for (auto f : {&OdtTimings::setup, &OdtTimings::upload, &OdtTimings::fft2, &OdtTimings::clear,
+                   &OdtTimings::mapping, &OdtTimings::normalize, &OdtTimings::solve,
+                   &OdtTimings::finish, &OdtTimings::download}) {
       out.*f = med(f);
     }
     return out;
@@ -206,6 +206,7 @@ int main(int argc, char** argv) {
 
   auto gpu_or_dash = [&](double v) { return gpu ? v : -1.0; };
   rows.push_back({"ODT: 2D FFT of Rytov fields", cpu_t.fft2, gpu_or_dash(gather_t.fft2)});
+  rows.push_back({"ODT: zero the volume", -1, gpu_or_dash(gather_t.clear)});
   rows.push_back({"ODT: Ewald mapping (gather)", cpu_t.mapping, gpu_or_dash(gather_t.mapping)});
   rows.push_back({"ODT: Ewald mapping (scatter, atomics)", -1, gpu_or_dash(scatter_t.mapping)});
   rows.push_back({"ODT: normalise", cpu_t.normalize, gpu_or_dash(gather_t.normalize)});
@@ -337,6 +338,7 @@ int main(int argc, char** argv) {
                               {"  field extraction (from the start of the upload)"},
                               {"  ratio, LS unwrap, Rytov"},
                               {"  2D FFT"},
+                              {"  zero the volume"},
                               {"  Ewald mapping"},
                               {"  normalise"},
                               {"  GP iterations + final 3D IFFT"},
@@ -370,11 +372,11 @@ int main(int argc, char** argv) {
       for (const auto& s : stages) v.push_back(s.*f);
       return median(v);
     };
-    const double values[] = {pick(&PipelineTimings::upload),  pick(&PipelineTimings::fields),
-                             pick(&PipelineTimings::rytov),   pick(&PipelineTimings::fft2),
-                             pick(&PipelineTimings::mapping), pick(&PipelineTimings::normalize),
-                             pick(&PipelineTimings::solve),   pick(&PipelineTimings::finish),
-                             pick(&PipelineTimings::download)};
+    const double values[] = {pick(&PipelineTimings::upload),    pick(&PipelineTimings::fields),
+                             pick(&PipelineTimings::rytov),     pick(&PipelineTimings::fft2),
+                             pick(&PipelineTimings::clear),     pick(&PipelineTimings::mapping),
+                             pick(&PipelineTimings::normalize), pick(&PipelineTimings::solve),
+                             pick(&PipelineTimings::finish),    pick(&PipelineTimings::download)};
     const bool on_gpu = b == Backend::cuda;
     (on_gpu ? setup_row.gpu : setup_row.cpu) = median(t_setup);
     (on_gpu ? bg_row.gpu : bg_row.cpu) = t_bg;
@@ -387,7 +389,8 @@ int main(int argc, char** argv) {
   }
   // The CPU path has no transfers.
   stage_rows[0].cpu = -1;
-  stage_rows[8].cpu = -1;
+  stage_rows[4].cpu = -1;
+  stage_rows[9].cpu = -1;
   e2e.push_back(setup_row);
   e2e.push_back(bg_row);
   e2e.push_back(run_row);

@@ -274,6 +274,7 @@ NB_MODULE(_core, m) {
         d["fields"] = t.fields;
         d["rytov"] = t.rytov;
         d["fft2"] = t.fft2;
+        d["clear"] = t.clear;
         d["mapping"] = t.mapping;
         d["normalize"] = t.normalize;
         d["solve"] = t.solve;

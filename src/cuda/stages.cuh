@@ -91,7 +91,7 @@ class OdtSolver {
   void set_illuminations(std::span<const Illumination> illum);
 
   // Marks recorded by run() after each of its stages, in this order.
-  enum Mark { fft2, mapping, normalize, solve, finish, marks };
+  enum Mark { fft2, clear, mapping, normalize, solve, finish, marks };
 
   // fields: (count, n, n) Rytov fields on the device, overwritten by their spectra. clock marks
   // first + Mark when given.
