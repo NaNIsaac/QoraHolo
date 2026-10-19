@@ -50,6 +50,7 @@ target_compile_options(qoraholo_warnings INTERFACE
 add_library(qoraholo
   src/api.cpp
   src/phantom.cpp
+  src/pipeline.cpp
   src/cpu/fft.cpp
   src/cpu/field.cpp
   src/cpu/odt.cpp
@@ -74,6 +75,7 @@ if(QORAHOLO_CUDA)
     src/cuda/field.cu
     src/cuda/unwrap.cu
     src/cuda/odt.cu
+    src/cuda/pipeline.cu
   )
   target_compile_definitions(qoraholo PUBLIC QORAHOLO_HAS_CUDA)
   target_link_libraries(qoraholo PRIVATE CUDA::cudart CUDA::cufft)

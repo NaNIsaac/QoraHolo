@@ -2,11 +2,14 @@
 
 // Backend entry points behind the public dispatch in api.cpp. Arguments are validated there.
 
+#include <array>
+#include <memory>
 #include <span>
 
 #include "common.hpp"
 #include "qoraholo/field.hpp"
 #include "qoraholo/odt.hpp"
+#include "qoraholo/pipeline.hpp"
 
 namespace qoraholo {
 
@@ -35,6 +38,28 @@ struct OdtTimings {
 // k-space grid constants for fields of side n reconstructed into nz axial voxels.
 detail::OdtGrid make_grid(int n, int nz, const Geometry& geometry);
 
+// Validated crop for holograms of side n with the sideband at center (pixels from DC).
+CropPlan crop_plan(const FieldOptions& options, std::array<float, 2> center, int n);
+// Validates the reconstruct() arguments for count fields of side n and returns the grid.
+detail::OdtGrid odt_grid(int n, int count, std::span<const Illumination> illuminations,
+                         const Geometry& geometry, const OdtOptions& options);
+
+class Pipeline::Impl {
+ public:
+  virtual ~Impl() = default;
+  virtual void set_background(const Array3<float>& backgrounds) = 0;
+  virtual std::span<float> input() = 0;
+  virtual void process() = 0;
+  [[nodiscard]] virtual std::span<const float> output() const = 0;
+
+  PipelineTimings timings;
+  double filled = 0;
+  double setup_ms = 0;
+  std::size_t device_bytes = 0;
+  std::array<int, 3> shape{};
+  bool has_background = false;
+};
+
 namespace cpu {
 Array3<cfloat> extract_fields(const Array3<float>& holograms, const CropPlan& plan);
 Array3<float> unwrap(const Array3<float>& wrapped);
@@ -47,6 +72,8 @@ OdtResult reconstruct(const Array3<cfloat>& rytov_fields, std::span<const Illumi
 #ifdef QORAHOLO_HAS_CUDA
 namespace cuda {
 bool device_present();
+std::unique_ptr<Pipeline::Impl> make_pipeline(const PipelineOptions& options, const CropPlan& crop,
+                                              const detail::OdtGrid& grid);
 Array3<cfloat> extract_fields(const Array3<float>& holograms, const CropPlan& plan);
 Array3<float> unwrap(const Array3<float>& wrapped);
 Array3<cfloat> rytov(const Array3<cfloat>& ratio);

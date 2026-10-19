@@ -49,11 +49,20 @@ bool cuda_available() {
 #endif
 }
 
+CropPlan crop_plan(const FieldOptions& options, std::array<float, 2> center, int n) {
+  CropPlan plan{static_cast<int>(std::lround(center[0])), static_cast<int>(std::lround(center[1])),
+                options.radius, options.output_size > 0 ? options.output_size : n};
+  if (plan.radius <= 0) plan.radius = std::hypot(center[0], center[1]) / 3.0f;
+  require(plan.out % 2 == 0 && plan.out <= n, "extract_fields: output_size must be even and <= N");
+  require(plan.radius > 0 && plan.radius <= static_cast<float>(plan.out) / 2.0f,
+          "extract_fields: crop radius must fit in the output window");
+  return plan;
+}
+
 Array3<cfloat> extract_fields(const Array3<float>& holograms, const FieldOptions& options,
                               Backend backend) {
   require_even_square(holograms.ny, holograms.nx, "extract_fields");
   require(holograms.nz >= 1, "extract_fields: empty stack");
-  const int n = holograms.nx;
   std::array<float, 2> c{};
   if (options.center) {
     c = *options.center;
@@ -61,13 +70,7 @@ Array3<cfloat> extract_fields(const Array3<float>& holograms, const FieldOptions
     const Sideband s = find_sideband(holograms, options.dc_exclusion);
     c = {static_cast<float>(s.iy), static_cast<float>(s.ix)};
   }
-  CropPlan plan{static_cast<int>(std::lround(c[0])), static_cast<int>(std::lround(c[1])),
-                options.radius, options.output_size > 0 ? options.output_size : n};
-  if (plan.radius <= 0) plan.radius = std::hypot(c[0], c[1]) / 3.0f;
-  require(plan.out % 2 == 0 && plan.out <= n, "extract_fields: output_size must be even and <= N");
-  require(plan.radius > 0 && plan.radius <= static_cast<float>(plan.out) / 2.0f,
-          "extract_fields: crop radius must fit in the output window");
-
+  const CropPlan plan = crop_plan(options, c, holograms.nx);
   if (backend == Backend::cuda) {
     require_cuda();
 #ifdef QORAHOLO_HAS_CUDA
@@ -101,15 +104,13 @@ Array3<cfloat> rytov(const Array3<cfloat>& ratio, Backend backend) {
   return cpu::rytov(ratio);
 }
 
-OdtResult reconstruct(const Array3<cfloat>& rytov_fields,
-                      std::span<const Illumination> illuminations, const Geometry& geometry,
-                      const OdtOptions& options) {
-  require_even_square(rytov_fields.ny, rytov_fields.nx, "reconstruct");
-  require(rytov_fields.nz >= 1 && static_cast<std::size_t>(rytov_fields.nz) == illuminations.size(),
+detail::OdtGrid odt_grid(int n, int count, std::span<const Illumination> illuminations,
+                         const Geometry& geometry, const OdtOptions& options) {
+  require_even_square(n, n, "reconstruct");
+  require(count >= 1 && static_cast<std::size_t>(count) == illuminations.size(),
           "reconstruct: need one illumination per field");
   require(geometry.wavelength > 0 && geometry.pixel > 0 && geometry.n_medium > 0 && geometry.na > 0,
           "reconstruct: geometry values must be positive");
-  const int n = rytov_fields.nx;
   const int nz = options.nz > 0 ? options.nz : n;
   require(nz % 2 == 0, "reconstruct: nz must be even");
   const float fm = geometry.n_medium / geometry.wavelength;
@@ -117,15 +118,22 @@ OdtResult reconstruct(const Array3<cfloat>& rytov_fields,
     require(il.fy * il.fy + il.fx * il.fx < fm * fm,
             "reconstruct: illumination frequency beyond n_medium / wavelength");
   }
+  if (options.backend == Backend::cuda) require_cuda();
+  return make_grid(n, nz, geometry);
+}
 
-  const detail::OdtGrid grid = make_grid(n, nz, geometry);
-  if (options.backend == Backend::cuda) {
-    require_cuda();
+OdtResult reconstruct(const Array3<cfloat>& rytov_fields,
+                      std::span<const Illumination> illuminations, const Geometry& geometry,
+                      const OdtOptions& options) {
+  require(rytov_fields.ny == rytov_fields.nx, "reconstruct: images must be square");
+  const detail::OdtGrid grid =
+      odt_grid(rytov_fields.nx, rytov_fields.nz, illuminations, geometry, options);
 #ifdef QORAHOLO_HAS_CUDA
+  if (options.backend == Backend::cuda) {
     return cuda::reconstruct(rytov_fields, illuminations, grid, geometry, options.gp_iterations,
                              options.mapping);
-#endif
   }
+#endif
   return cpu::reconstruct(rytov_fields, illuminations, grid, geometry, options.gp_iterations);
 }
 

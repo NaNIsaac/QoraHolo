@@ -111,10 +111,11 @@ class StageClock {
  public:
   explicit StageClock(int marks) : events_(marks) {}
   void mark(int i, cudaStream_t s) { events_.at(i).record(s); }
-  [[nodiscard]] double ms(int from, int to) const {
+  [[nodiscard]] cudaEvent_t event(int i) const { return events_.at(i).get(); }
+  [[nodiscard]] double ms(int from, int to) const { return ms_to(from, events_.at(to)); }
+  [[nodiscard]] double ms_to(int from, const Event& to) const {
     float t = 0;
-    check(cudaEventElapsedTime(&t, events_.at(from).get(), events_.at(to).get()),
-          "cudaEventElapsedTime");
+    check(cudaEventElapsedTime(&t, events_.at(from).get(), to.get()), "cudaEventElapsedTime");
     return t;
   }
 
