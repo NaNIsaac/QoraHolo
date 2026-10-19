@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "QoraHolo: holotomography reconstruction in C++ and CUDA"
+authors:
+  - family-names: Yong
+    given-names: Isaac
+    email: isaacyong@naver.com
+    affiliation: "Sogang University"
+license: MIT
+repository-code: "https://github.com/NaNIsaac/QoraHolo"
+abstract: "Off-axis field retrieval, least-squares phase unwrapping and Rytov optical diffraction tomography with Gerchberg-Papoulis missing-cone filling, on CPU and CUDA, with Python bindings."
+keywords:
+  - "holotomography"
+  - "optical diffraction tomography"
+  - "digital holography"
+  - "CUDA"
+version: "0.1.0"
+date-released: "2026-10-20"
