@@ -1,0 +1,43 @@
+[build-system]
+requires = ["scikit-build-core>=0.11", "nanobind>=2.9"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "qoraholo"
+version = "0.1.0"
+description = "Holotomography (optical diffraction tomography) reconstruction in C++ and CUDA"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+authors = [{ name = "Isaac Yong", email = "isaacyong@naver.com" }]
+keywords = ["holotomography", "optical diffraction tomography", "digital holography", "CUDA"]
+dependencies = ["numpy>=2"]
+
+[project.urls]
+Repository = "https://github.com/NaNIsaac/QoraHolo"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+examples = ["matplotlib>=3.9"]
+
+[tool.scikit-build]
+minimum-version = "build-system.requires"
+cmake.version = ">=3.28"
+wheel.packages = ["python/qoraholo"]
+wheel.py-api = "cp312"
+build-dir = "build/{wheel_tag}"
+sdist.exclude = ["build", ".github"]
+
+[tool.scikit-build.cmake.define]
+QORAHOLO_BUILD_PYTHON = "ON"
+QORAHOLO_BUILD_TESTS = "OFF"
+QORAHOLO_BUILD_BENCH = "OFF"
+
+[tool.pytest.ini_options]
+testpaths = ["python/tests"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
