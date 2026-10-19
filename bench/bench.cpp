@@ -2,8 +2,10 @@
 //
 //   qoraholo_bench [--field N] [--angles A] [--gp G] [--repeat R]
 //
-// Holograms are 2N x 2N, fields N x N, the volume N^3. CUDA field/Rytov times are wall times
-// including host-device copies; ODT sub-stages on CUDA are cudaEvent times without copies.
+// Holograms are 2N x 2N, fields N x N, the volume N^3. In the per-call table, CUDA field/Rytov
+// times are wall times including host-device copies and plan creation; ODT sub-stages on CUDA
+// are cudaEvent times without copies. The end-to-end table compares the per-call chain with the
+// Pipeline, whose CUDA stage times are cudaEvent intervals.
 
 #include <algorithm>
 #include <chrono>
@@ -12,6 +14,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -43,7 +46,21 @@ struct Row {
   double gpu = -1;
 };
 
-[[maybe_unused]] double contrast_error(const Array3<float>& a, const Array3<float>& b, float nm) {
+void print_table(const char* title, const std::vector<Row>& rows) {
+  std::printf("\n%s\n\n| stage | CPU (ms) | CUDA (ms) |\n|---|---:|---:|\n", title);
+  for (const auto& r : rows) {
+    const auto cell_text = [](double v) {
+      if (v < 0) return std::string("-");
+      char buf[32];
+      std::snprintf(buf, sizeof buf, v < 10 ? "%.2f" : "%.0f", v);
+      return std::string(buf);
+    };
+    std::printf("| %s | %s | %s |\n", r.stage.c_str(), cell_text(r.cpu).c_str(),
+                cell_text(r.gpu).c_str());
+  }
+}
+
+double contrast_error(const Array3<float>& a, const Array3<float>& b, float nm) {
   double num = 0;
   double den = 0;
   for (std::size_t i = 0; i < a.size(); ++i) {
@@ -167,22 +184,170 @@ int main(int argc, char** argv) {
   rows.push_back({"ODT: GP iterations + final 3D IFFT", cpu_t.gp, gpu_or_dash(gather_t.gp)});
   rows.push_back({"ODT: potential to index", cpu_t.finish, gpu_or_dash(gather_t.finish)});
   rows.push_back({"ODT: host-device copies", -1, gpu_or_dash(gather_t.upload + gather_t.download)});
-
-  std::printf("\n| stage | CPU (ms) | CUDA (ms) |\n|---|---:|---:|\n");
-  for (const auto& r : rows) {
-    const auto cell_text = [](double v) {
-      if (v < 0) return std::string("-");
-      char buf[32];
-      std::snprintf(buf, sizeof buf, v < 10 ? "%.2f" : "%.0f", v);
-      return std::string(buf);
-    };
-    std::printf("| %s | %s | %s |\n", r.stage.c_str(), cell_text(r.cpu).c_str(),
-                cell_text(r.gpu).c_str());
-  }
+  rows.push_back({"ODT: allocations and cuFFT plans (host)", -1, gpu_or_dash(gather_t.setup)});
+  print_table("per-call functions", rows);
   std::printf("\nfilled k-space fraction %.4f\n", cpu_result.filled);
   if (gpu) {
     std::printf("relative RI-contrast difference CUDA vs CPU: gather %.2e, scatter %.2e\n", odt_err,
                 scatter_err);
   }
+
+  // End to end: holograms in, index out.
+  PipelineOptions po;
+  po.count = angles;
+  po.hologram_size = holo_n;
+  po.field = fo;
+  po.illuminations = illum;
+  po.geometry = geom;
+  po.odt.gp_iterations = gp;
+  std::vector<Row> e2e;
+  {
+    Row r{"per-call functions, host in / host out"};
+    auto chain = [&](Backend b) {
+      OdtOptions o = po.odt;
+      o.backend = b;
+      const auto f = field_ratio(extract_fields(holo, fo, b), extract_fields(bg, fo, b));
+      return reconstruct(rytov(f, b), illum, geom, o);
+    };
+    std::vector<double> t;
+    for (int i = 0; i < repeat; ++i) t.push_back(time_ms([&] { (void)chain(Backend::cpu); }));
+    r.cpu = median(t);
+    if (gpu) {
+      t.clear();
+      (void)chain(Backend::cuda);
+      for (int i = 0; i < repeat; ++i) t.push_back(time_ms([&] { (void)chain(Backend::cuda); }));
+      r.gpu = median(t);
+    }
+    e2e.push_back(r);
+  }
+  std::vector<Backend> backends{Backend::cpu};
+  if (gpu) backends.push_back(Backend::cuda);
+  Row setup_row{"Pipeline: constructor (allocations, cuFFT plans)"};
+  Row bg_row{"Pipeline: set_background"};
+  Row run_row{"Pipeline: run(), copies into and out of its buffers"};
+  Row process_row{"Pipeline: process(), page-locked input and output"};
+  std::vector<Row> stage_rows{{"  upload of the sample holograms"},
+                              {"  field extraction (from the start of the upload)"},
+                              {"  ratio, LS unwrap, Rytov"},
+                              {"  2D FFT"},
+                              {"  Ewald mapping"},
+                              {"  normalise"},
+                              {"  GP iterations + final 3D IFFT"},
+                              {"  potential to index"},
+                              {"  download of the volume"}};
+  std::size_t device_bytes = 0;
+  OdtResult pipe_result;
+  for (Backend b : backends) {
+    po.odt.backend = b;
+    std::vector<double> t_setup;
+    std::unique_ptr<Pipeline> p;
+    for (int i = 0; i < repeat; ++i) {
+      p.reset();
+      p = std::make_unique<Pipeline>(po);
+      t_setup.push_back(p->setup_ms());
+    }
+    const double t_bg = time_ms([&] { p->set_background(bg); });
+    std::vector<double> t_run;
+    (void)p->run(holo);
+    for (int i = 0; i < repeat; ++i) t_run.push_back(time_ms([&] { pipe_result = p->run(holo); }));
+    std::copy(holo.data.begin(), holo.data.end(), p->input().begin());
+    std::vector<double> t_proc;
+    std::vector<PipelineTimings> stages;
+    for (int i = 0; i < repeat; ++i) {
+      p->process();
+      t_proc.push_back(p->timings().total);
+      stages.push_back(p->timings());
+    }
+    const auto pick = [&](double PipelineTimings::* f) {
+      std::vector<double> v;
+      for (const auto& s : stages) v.push_back(s.*f);
+      return median(v);
+    };
+    const double values[] = {pick(&PipelineTimings::upload),  pick(&PipelineTimings::fields),
+                             pick(&PipelineTimings::rytov),   pick(&PipelineTimings::fft2),
+                             pick(&PipelineTimings::mapping), pick(&PipelineTimings::normalize),
+                             pick(&PipelineTimings::solve),   pick(&PipelineTimings::finish),
+                             pick(&PipelineTimings::download)};
+    const bool on_gpu = b == Backend::cuda;
+    (on_gpu ? setup_row.gpu : setup_row.cpu) = median(t_setup);
+    (on_gpu ? bg_row.gpu : bg_row.cpu) = t_bg;
+    (on_gpu ? run_row.gpu : run_row.cpu) = median(t_run);
+    (on_gpu ? process_row.gpu : process_row.cpu) = median(t_proc);
+    for (std::size_t k = 0; k < stage_rows.size(); ++k) {
+      (on_gpu ? stage_rows[k].gpu : stage_rows[k].cpu) = values[k];
+    }
+    if (on_gpu) device_bytes = p->device_bytes();
+  }
+  // The CPU path has no transfers.
+  stage_rows[0].cpu = -1;
+  stage_rows[8].cpu = -1;
+  e2e.push_back(setup_row);
+  e2e.push_back(bg_row);
+  e2e.push_back(run_row);
+  e2e.push_back(process_row);
+  e2e.insert(e2e.end(), stage_rows.begin(), stage_rows.end());
+  print_table("end to end, sample holograms in, index out", e2e);
+  if (gpu) {
+    std::printf("\nPipeline device memory %.2f GiB\n", double(device_bytes) / (1 << 30));
+    std::printf("relative RI-contrast difference CUDA Pipeline vs CPU: %.2e\n",
+                contrast_error(pipe_result.ri, cpu_result.ri, geom.n_medium));
+  }
+
+#ifdef QORAHOLO_HAS_CUDA
+  if (gpu) {
+    // Copy paths on their own, and the chunked upload overlapping field extraction.
+    std::printf("\n| transfer | pageable (ms) | page-locked (ms) |\n|---|---:|---:|\n");
+    const auto transfer = [&](const char* name, std::size_t bytes, bool to_device) {
+      std::vector<char> pageable(bytes, 1);
+      char* pinned = nullptr;
+      char* dev = nullptr;
+      cudaMallocHost(&pinned, bytes);
+      cudaMalloc(&dev, bytes);
+      const auto copy = [&](char* host) {
+        return time_ms([&] {
+          if (to_device) {
+            cudaMemcpy(dev, host, bytes, cudaMemcpyHostToDevice);
+          } else {
+            cudaMemcpy(host, dev, bytes, cudaMemcpyDeviceToHost);
+          }
+        });
+      };
+      std::vector<double> a;
+      std::vector<double> b;
+      (void)copy(pageable.data());
+      (void)copy(pinned);
+      for (int i = 0; i < repeat; ++i) {
+        a.push_back(copy(pageable.data()));
+        b.push_back(copy(pinned));
+      }
+      std::printf("| %s, %.0f MiB | %.2f | %.2f |\n", name, double(bytes) / (1 << 20), median(a),
+                  median(b));
+      cudaFree(dev);
+      cudaFreeHost(pinned);
+    };
+    transfer("sample holograms to device", holo.size() * sizeof(float), true);
+    transfer("index volume to host", cpu_result.ri.size() * sizeof(float), false);
+
+    std::printf("\n| upload chunks | upload + field extraction (ms) | process() (ms) |\n");
+    std::printf("|---:|---:|---:|\n");
+    po.odt.backend = Backend::cuda;
+    for (int chunks : {1, 7, 49}) {
+      if (chunks > angles) continue;
+      po.upload_chunks = chunks;
+      Pipeline p(po);
+      p.set_background(bg);
+      std::copy(holo.data.begin(), holo.data.end(), p.input().begin());
+      p.process();
+      std::vector<double> f;
+      std::vector<double> t;
+      for (int i = 0; i < repeat; ++i) {
+        p.process();
+        f.push_back(p.timings().fields);
+        t.push_back(p.timings().total);
+      }
+      std::printf("| %d | %.2f | %.2f |\n", chunks, median(f), median(t));
+    }
+  }
+#endif
   return 0;
 }
