@@ -43,7 +43,7 @@ struct Row {
   double gpu = -1;
 };
 
-double contrast_error(const Array3<float>& a, const Array3<float>& b, float nm) {
+[[maybe_unused]] double contrast_error(const Array3<float>& a, const Array3<float>& b, float nm) {
   double num = 0;
   double den = 0;
   for (std::size_t i = 0; i < a.size(); ++i) {
