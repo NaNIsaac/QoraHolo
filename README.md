@@ -68,9 +68,11 @@ On Windows the CUDA build loads cuFFT from `%CUDA_PATH%in`.
 import qoraholo as qh
 
 geom = qh.Geometry(wavelength=0.532, n_medium=1.337, na=1.2, pixel=0.11)
-opts = dict(center=(141, 141), radius=65, output_size=256)        # carrier, crop
-fields = qh.field_ratio(qh.extract_fields(holograms, **opts),     # (49, 512, 512) float
-                        qh.extract_fields(backgrounds, **opts))
+opts = dict(center=(141, 141), radius=65, output_size=256)  # carrier, crop
+fields = qh.field_ratio(
+    qh.extract_fields(holograms, **opts),  # (49, 512, 512) float
+    qh.extract_fields(backgrounds, **opts),
+)
 ri = qh.reconstruct(qh.rytov(fields), illuminations, geom, gp_iterations=20, backend="cuda")
 ```
 
