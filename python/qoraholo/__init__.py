@@ -23,6 +23,7 @@ from ._core import Geometry, Sideband, Sphere, cuda_available  # noqa: E402
 
 __all__ = [
     "Geometry",
+    "Pipeline",
     "Sideband",
     "Sphere",
     "circular_scan",
@@ -121,6 +122,73 @@ def reconstruct(
         f, _illum(illuminations), geometry, nz, gp_iterations, mapping, backend
     )
     return (ri, filled) if return_filled else ri
+
+
+class Pipeline:
+    """Holograms to refractive index with plans and buffers allocated once.
+
+    On CUDA the background fields stay on the device and each ``run`` does one upload of the
+    sample holograms and one download of the volume. ``center`` is the reference carrier
+    (y, x) in pixels from DC, as for ``extract_fields``; the other arguments are those of
+    ``extract_fields`` and ``reconstruct``. ``upload_chunks`` splits the CUDA upload so field
+    extraction overlaps it.
+    """
+
+    def __init__(
+        self,
+        count: int,
+        hologram_size: int,
+        center: tuple[float, float],
+        illuminations,
+        geometry: Geometry,
+        radius: float = 0.0,
+        output_size: int = 0,
+        nz: int = 0,
+        gp_iterations: int = 0,
+        mapping: str = "gather",
+        backend: str = "cpu",
+        upload_chunks: int = 1,
+    ):
+        self._p = _core.Pipeline(
+            count,
+            hologram_size,
+            tuple(center),
+            radius,
+            output_size,
+            _illum(illuminations),
+            geometry,
+            nz,
+            gp_iterations,
+            mapping,
+            backend,
+            upload_chunks,
+        )
+
+    def set_background(self, backgrounds) -> None:
+        """Background holograms (count, N, N); their fields are extracted once and kept."""
+        self._p.set_background(np.ascontiguousarray(backgrounds, dtype=np.float32))
+
+    def run(self, holograms):
+        """Sample holograms (count, N, N) to the index volume (nz, n, n)."""
+        return self._p.run(np.ascontiguousarray(holograms, dtype=np.float32))
+
+    @property
+    def filled(self) -> float:
+        """Fraction of k-space voxels that received data in the last run."""
+        return self._p.filled
+
+    @property
+    def timings(self) -> dict[str, float]:
+        """Milliseconds per stage of the last run; on CUDA, device event intervals."""
+        return self._p.timings
+
+    @property
+    def setup_ms(self) -> float:
+        return self._p.setup_ms
+
+    @property
+    def device_bytes(self) -> int:
+        return self._p.device_bytes
 
 
 def circular_scan(count: int, na_illumination: float, geometry: Geometry):

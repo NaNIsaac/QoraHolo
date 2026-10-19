@@ -58,3 +58,28 @@ def test_cuda_matches_cpu():
     a = qh.reconstruct(fields, illum, GEOM, gp_iterations=3) - GEOM.n_medium
     b = qh.reconstruct(fields, illum, GEOM, gp_iterations=3, backend="cuda") - GEOM.n_medium
     assert np.linalg.norm(a - b) / np.linalg.norm(a) < 1e-4
+
+
+@pytest.mark.parametrize("backend", ["cpu", "cuda"])
+def test_pipeline_matches_functions(backend):
+    if backend == "cuda" and not qh.cuda_available():
+        pytest.skip("no CUDA device")
+    holo_geom = qh.Geometry(wavelength=0.532, n_medium=1.337, na=1.2, pixel=0.1)
+    illum = qh.circular_scan(9, 0.9, GEOM)
+    ratio = qh.forward_fields(SPHERE, illum, holo_geom, 128)
+    carrier = 36 / (128 * 0.1)
+    holo = qh.synthesize_holograms(ratio, illum, holo_geom, carrier=(carrier, carrier))
+    bg = qh.synthesize_holograms(np.ones_like(ratio), illum, holo_geom, carrier=(carrier, carrier))
+    crop = dict(center=(36, 36), radius=30, output_size=64)
+    fields = qh.field_ratio(qh.extract_fields(holo, **crop), qh.extract_fields(bg, **crop))
+    ref = qh.reconstruct(qh.rytov(fields), illum, GEOM, gp_iterations=3)
+
+    p = qh.Pipeline(
+        9, 128, illuminations=illum, geometry=GEOM, gp_iterations=3, backend=backend, **crop
+    )
+    p.set_background(bg)
+    ri = p.run(holo)
+    assert ri.shape == (64, 64, 64)
+    a, b = ri - GEOM.n_medium, ref - GEOM.n_medium
+    assert np.linalg.norm(a - b) / np.linalg.norm(b) < 1e-4
+    assert p.timings["total"] > 0

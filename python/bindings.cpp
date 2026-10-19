@@ -53,6 +53,12 @@ Backend parse_backend(const std::string& s) {
   throw std::invalid_argument("backend must be 'cpu' or 'cuda'");
 }
 
+Mapping parse_mapping(const std::string& s) {
+  if (s == "gather") return Mapping::gather;
+  if (s == "scatter") return Mapping::scatter;
+  throw std::invalid_argument("mapping must be 'gather' or 'scatter'");
+}
+
 }  // namespace
 
 NB_MODULE(_core, m) {
@@ -168,10 +174,7 @@ NB_MODULE(_core, m) {
         OdtOptions opt;
         opt.nz = nz;
         opt.gp_iterations = gp_iterations;
-        if (mapping != "gather" && mapping != "scatter") {
-          throw std::invalid_argument("mapping must be 'gather' or 'scatter'");
-        }
-        opt.mapping = mapping == "gather" ? Mapping::gather : Mapping::scatter;
+        opt.mapping = parse_mapping(mapping);
         opt.backend = parse_backend(backend);
         OdtResult r;
         {
@@ -182,6 +185,79 @@ NB_MODULE(_core, m) {
       },
       nb::arg("fields"), nb::arg("illuminations"), nb::arg("geometry"), nb::arg("nz") = 0,
       nb::arg("gp_iterations") = 0, nb::arg("mapping") = "gather", nb::arg("backend") = "cpu");
+
+  nb::class_<Pipeline>(m, "Pipeline")
+      .def(
+          "__init__",
+          [](Pipeline* p, int count, int hologram_size, std::array<float, 2> center, float radius,
+             int output_size,
+             nb::ndarray<const float, nb::ndim<2>, nb::c_contig, nb::device::cpu> illuminations,
+             const Geometry& geometry, int nz, int gp_iterations, const std::string& mapping,
+             const std::string& backend, int upload_chunks) {
+            PipelineOptions o;
+            o.count = count;
+            o.hologram_size = hologram_size;
+            o.field.center = center;
+            o.field.radius = radius;
+            o.field.output_size = output_size;
+            o.illuminations = to_illum(illuminations);
+            o.geometry = geometry;
+            o.odt.nz = nz;
+            o.odt.gp_iterations = gp_iterations;
+            o.odt.mapping = parse_mapping(mapping);
+            o.odt.backend = parse_backend(backend);
+            o.upload_chunks = upload_chunks;
+            new (p) Pipeline(std::move(o));
+          },
+          nb::arg("count"), nb::arg("hologram_size"), nb::arg("center"), nb::arg("radius"),
+          nb::arg("output_size"), nb::arg("illuminations"), nb::arg("geometry"), nb::arg("nz"),
+          nb::arg("gp_iterations"), nb::arg("mapping"), nb::arg("backend"),
+          nb::arg("upload_chunks"))
+      .def(
+          "set_background",
+          [](Pipeline& p, In3<float> backgrounds) {
+            auto b = to_array(backgrounds);
+            nb::gil_scoped_release release;
+            p.set_background(b);
+          },
+          nb::arg("backgrounds"))
+      .def(
+          "run",
+          [](Pipeline& p, In3<float> holograms) {
+            const auto in = p.input();
+            if (holograms.size() != in.size()) {
+              throw std::invalid_argument("Pipeline.run: shape must be (count, N, N)");
+            }
+            std::copy(holograms.data(), holograms.data() + holograms.size(), in.begin());
+            const auto [nz, ny, nx] = p.output_shape();
+            Array3<float> out(nz, ny, nx);
+            {
+              nb::gil_scoped_release release;
+              p.process();
+              const auto o = p.output();
+              std::copy(o.begin(), o.end(), out.data.begin());
+            }
+            return to_numpy(std::move(out));
+          },
+          nb::arg("holograms"))
+      .def_prop_ro("filled", &Pipeline::filled)
+      .def_prop_ro("setup_ms", &Pipeline::setup_ms)
+      .def_prop_ro("device_bytes", &Pipeline::device_bytes)
+      .def_prop_ro("timings", [](const Pipeline& p) {
+        const PipelineTimings& t = p.timings();
+        nb::dict d;
+        d["upload"] = t.upload;
+        d["fields"] = t.fields;
+        d["rytov"] = t.rytov;
+        d["fft2"] = t.fft2;
+        d["mapping"] = t.mapping;
+        d["normalize"] = t.normalize;
+        d["solve"] = t.solve;
+        d["finish"] = t.finish;
+        d["download"] = t.download;
+        d["total"] = t.total;
+        return d;
+      });
 
   m.def(
       "circular_scan",
