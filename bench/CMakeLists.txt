@@ -1,0 +1,6 @@
+add_executable(qoraholo_bench bench.cpp)
+target_include_directories(qoraholo_bench PRIVATE ${PROJECT_SOURCE_DIR}/src)
+target_link_libraries(qoraholo_bench PRIVATE qoraholo qoraholo_warnings)
+if(QORAHOLO_CUDA)
+  target_link_libraries(qoraholo_bench PRIVATE CUDA::cudart)
+endif()
