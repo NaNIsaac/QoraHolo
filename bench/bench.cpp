@@ -1,13 +1,13 @@
 // Per-stage timing of the reconstruction pipeline on CPU and CUDA.
 //
-//   qoraholo_bench [--field N] [--angles A] [--gp G] [--repeat R] [--cpu 0|1]
+//   qoraholo_bench [--field N] [--angles A] [--gp G] [--repeat R] [--cpu 0|1] [--tv 1]
 //
 // Holograms are 2N x 2N, fields N x N, the volume N^3. In the per-call table, CUDA field/Rytov
 // times are wall times including host-device copies and plan creation; ODT sub-stages on CUDA
 // are cudaEvent times without copies. The end-to-end table compares the per-call chain with the
 // Pipeline, whose CUDA stage times are cudaEvent intervals. --cpu 0 skips the CPU backend
 // (its 512^3 solver runs need several GiB of host memory); CUDA results are then compared with
-// each other and with the phantom only.
+// each other and with the phantom only. --tv 1 runs only the TV kernel comparison.
 
 #include <algorithm>
 #include <chrono>
@@ -82,6 +82,7 @@ int main(int argc, char** argv) {
   int gp = 10;
   int repeat = 3;
   int use_cpu = 1;
+  int tv_only = 0;
   for (int i = 1; i + 1 < argc; i += 2) {
     const int v = std::atoi(argv[i + 1]);
     if (!std::strcmp(argv[i], "--field")) n = v;
@@ -89,6 +90,7 @@ int main(int argc, char** argv) {
     if (!std::strcmp(argv[i], "--gp")) gp = v;
     if (!std::strcmp(argv[i], "--repeat")) repeat = v;
     if (!std::strcmp(argv[i], "--cpu")) use_cpu = v;
+    if (!std::strcmp(argv[i], "--tv")) tv_only = v;
   }
   const int holo_n = 2 * n;
   const bool gpu = cuda_available();
@@ -129,6 +131,10 @@ int main(int argc, char** argv) {
 
   std::vector<Row> rows;
   auto bench = [&](const char* name, const std::function<void(Backend)>& f) {
+    if (tv_only) {
+      f(gpu ? Backend::cuda : Backend::cpu);
+      return;
+    }
     Row r{name};
     std::vector<double> t;
     r.cpu = -1;
@@ -181,7 +187,7 @@ int main(int argc, char** argv) {
   OdtResult cpu_c2c;
   OdtTimings cpu_t;
   OdtTimings cpu_c2c_t;
-  if (use_cpu) {
+  if (use_cpu && !tv_only) {
     cpu_t =
         profile([&](OdtTimings* t) { return cpu::reconstruct(ryt, illum, grid, geom, r2c_opt, t); },
                 cpu_result);
@@ -198,7 +204,7 @@ int main(int argc, char** argv) {
   OdtResult g_res;
   OdtResult c_res;
 #ifdef QORAHOLO_HAS_CUDA
-  if (gpu) {
+  if (gpu && !tv_only) {
     OdtResult s_res;
     (void)cuda::reconstruct(ryt, illum, grid, geom, r2c_opt);
     gather_t = profile(
@@ -224,32 +230,36 @@ int main(int argc, char** argv) {
   const OdtResult& ref_c2c = use_cpu ? cpu_c2c : c_res;
   const auto cpu_or_dash = [&](double v) { return use_cpu ? v : -1.0; };
 
-  auto gpu_or_dash = [&](double v) { return gpu ? v : -1.0; };
-  rows.push_back(
-      {"ODT: 2D FFT of Rytov fields", cpu_or_dash(cpu_t.fft2), gpu_or_dash(gather_t.fft2)});
-  rows.push_back({"ODT: zero the volume", -1, gpu_or_dash(gather_t.clear)});
-  rows.push_back(
-      {"ODT: Ewald mapping (gather)", cpu_or_dash(cpu_t.mapping), gpu_or_dash(gather_t.mapping)});
-  rows.push_back({"ODT: Ewald mapping (scatter, atomics)", -1, gpu_or_dash(scatter_t.mapping)});
-  rows.push_back({"ODT: normalise", cpu_or_dash(cpu_t.normalize), gpu_or_dash(gather_t.normalize)});
-  rows.push_back({"ODT: GP iterations + final 3D IFFT, R2C/C2R", cpu_or_dash(cpu_t.solve),
-                  gpu_or_dash(gather_t.solve)});
-  rows.push_back({"ODT: GP iterations + final 3D IFFT, C2C", cpu_or_dash(cpu_c2c_t.solve),
-                  gpu_or_dash(gpu_c2c_t.solve)});
-  rows.push_back(
-      {"ODT: potential to index", cpu_or_dash(cpu_t.finish), gpu_or_dash(gather_t.finish)});
-  rows.push_back({"ODT: host-device copies", -1, gpu_or_dash(gather_t.upload + gather_t.download)});
-  rows.push_back({"ODT: allocations and cuFFT plans (host)", -1, gpu_or_dash(gather_t.setup)});
-  print_table("per-call functions", rows);
-  std::printf("\nfilled k-space fraction %.4f\n", ref.filled);
-  const auto gib = [](std::size_t b) { return double(b) / (1 << 30); };
-  std::printf("reconstruct memory, R2C / C2C:");
-  if (use_cpu) std::printf(" CPU arrays %.2f / %.2f GiB", gib(cpu_t.bytes), gib(cpu_c2c_t.bytes));
-  if (gpu) {
-    std::printf(" CUDA device %.2f / %.2f GiB", gib(gather_t.bytes), gib(gpu_c2c_t.bytes));
+  if (!tv_only) {
+    auto gpu_or_dash = [&](double v) { return gpu ? v : -1.0; };
+    rows.push_back(
+        {"ODT: 2D FFT of Rytov fields", cpu_or_dash(cpu_t.fft2), gpu_or_dash(gather_t.fft2)});
+    rows.push_back({"ODT: zero the volume", -1, gpu_or_dash(gather_t.clear)});
+    rows.push_back(
+        {"ODT: Ewald mapping (gather)", cpu_or_dash(cpu_t.mapping), gpu_or_dash(gather_t.mapping)});
+    rows.push_back({"ODT: Ewald mapping (scatter, atomics)", -1, gpu_or_dash(scatter_t.mapping)});
+    rows.push_back(
+        {"ODT: normalise", cpu_or_dash(cpu_t.normalize), gpu_or_dash(gather_t.normalize)});
+    rows.push_back({"ODT: GP iterations + final 3D IFFT, R2C/C2R", cpu_or_dash(cpu_t.solve),
+                    gpu_or_dash(gather_t.solve)});
+    rows.push_back({"ODT: GP iterations + final 3D IFFT, C2C", cpu_or_dash(cpu_c2c_t.solve),
+                    gpu_or_dash(gpu_c2c_t.solve)});
+    rows.push_back(
+        {"ODT: potential to index", cpu_or_dash(cpu_t.finish), gpu_or_dash(gather_t.finish)});
+    rows.push_back(
+        {"ODT: host-device copies", -1, gpu_or_dash(gather_t.upload + gather_t.download)});
+    rows.push_back({"ODT: allocations and cuFFT plans (host)", -1, gpu_or_dash(gather_t.setup)});
+    print_table("per-call functions", rows);
+    std::printf("\nfilled k-space fraction %.4f\n", ref.filled);
+    const auto gib = [](std::size_t b) { return double(b) / (1 << 30); };
+    std::printf("reconstruct memory, R2C / C2C:");
+    if (use_cpu) std::printf(" CPU arrays %.2f / %.2f GiB", gib(cpu_t.bytes), gib(cpu_c2c_t.bytes));
+    if (gpu) {
+      std::printf(" CUDA device %.2f / %.2f GiB", gib(gather_t.bytes), gib(gpu_c2c_t.bytes));
+    }
+    std::printf("\nrelative RI-contrast difference R2C vs C2C (%s): %.2e\n",
+                use_cpu ? "CPU" : "CUDA", contrast_error(ref.ri, ref_c2c.ri, geom.n_medium));
   }
-  std::printf("\nrelative RI-contrast difference R2C vs C2C (%s): %.2e\n", use_cpu ? "CPU" : "CUDA",
-              contrast_error(ref.ri, ref_c2c.ri, geom.n_medium));
   const auto truth = render_phantom(cell, geom, n, n);
   // RMSE against the phantom over the volume and mean index in the inner 60% of the nucleus.
   const auto score = [&](const Array3<float>& ri) {
@@ -274,62 +284,111 @@ int main(int argc, char** argv) {
     }
     return std::pair{std::sqrt(sq / double(ri.size())), inner / count};
   };
-  {
-    const auto [r2c_rmse, r2c_nuc] = score(ref.ri);
-    const auto [c2c_rmse, c2c_nuc] = score(ref_c2c.ri);
-    std::printf("against the phantom (nucleus %.4f): R2C RMSE %.3e, nucleus mean %.4f; ", cell[1].n,
-                r2c_rmse, r2c_nuc);
-    std::printf("C2C RMSE %.3e, nucleus mean %.4f\n", c2c_rmse, c2c_nuc);
-  }
-  if (gpu && use_cpu) {
-    std::printf(
-        "relative RI-contrast difference CUDA vs CPU: gather %.2e, scatter %.2e, C2C %.2e\n",
-        odt_err, scatter_err, c2c_err);
-  } else if (gpu) {
-    std::printf("relative RI-contrast difference CUDA scatter vs gather: %.2e\n", scatter_err);
-  }
+  if (!tv_only) {
+    {
+      const auto [r2c_rmse, r2c_nuc] = score(ref.ri);
+      const auto [c2c_rmse, c2c_nuc] = score(ref_c2c.ri);
+      std::printf("against the phantom (nucleus %.4f): R2C RMSE %.3e, nucleus mean %.4f; ",
+                  cell[1].n, r2c_rmse, r2c_nuc);
+      std::printf("C2C RMSE %.3e, nucleus mean %.4f\n", c2c_rmse, c2c_nuc);
+    }
+    if (gpu && use_cpu) {
+      std::printf(
+          "relative RI-contrast difference CUDA vs CPU: gather %.2e, scatter %.2e, C2C %.2e\n",
+          odt_err, scatter_err, c2c_err);
+    } else if (gpu) {
+      std::printf("relative RI-contrast difference CUDA scatter vs gather: %.2e\n", scatter_err);
+    }
 
-  // Missing-cone solvers on the same Rytov fields. CPU: one run; CUDA: median of `repeat`.
-  {
-    struct Config {
-      const char* name;
-      OdtOptions opt;
-    };
-    std::vector<Config> configs(4);
-    configs[0].name = "Rytov ODT, no iterations";
-    configs[1].name = "GP, 20 iterations";
-    configs[1].opt.iterations = 20;
-    configs[2].name = "GP, 100 iterations";
-    configs[2].opt.iterations = 100;
-    configs[3].name = "FISTA-TV, 20 x 10 iterations";
-    configs[3].opt.iterations = 20;
-    configs[3].opt.solver = Solver::tv;
-    std::printf("\nmissing-cone solvers (TV weight %.0e)\n\n", double(configs[3].opt.tv_weight));
-    std::printf("| solver | CPU (ms) | CUDA (ms) | RMSE | nucleus mean |\n");
-    std::printf("|---|---:|---:|---:|---:|\n");
-    for (auto& c : configs) {
-      OdtResult r;
-      double t_cpu = -1;
-      if (use_cpu) t_cpu = time_ms([&] { r = reconstruct(ryt, illum, geom, c.opt); });
-      double t_gpu = -1;
-      if (gpu) {
-        c.opt.backend = Backend::cuda;
-        OdtResult g = reconstruct(ryt, illum, geom, c.opt);
-        if (!use_cpu) r = std::move(g);
-        std::vector<double> t;
-        for (int i = 0; i < repeat; ++i) {
-          t.push_back(time_ms([&] { (void)reconstruct(ryt, illum, geom, c.opt); }));
-        }
-        t_gpu = median(t);
-      }
-      const auto [rmse, nuc] = score(r.ri);
-      const auto ms = [](double v) {
-        return v < 0 ? std::string("-") : std::to_string(std::lround(v));
+    // Missing-cone solvers on the same Rytov fields. CPU: one run; CUDA: median of `repeat`.
+    {
+      struct Config {
+        const char* name;
+        OdtOptions opt;
       };
-      std::printf("| %s | %s | %s | %.3e | %.4f |\n", c.name, ms(t_cpu).c_str(), ms(t_gpu).c_str(),
-                  rmse, nuc);
+      std::vector<Config> configs(4);
+      configs[0].name = "Rytov ODT, no iterations";
+      configs[1].name = "GP, 20 iterations";
+      configs[1].opt.iterations = 20;
+      configs[2].name = "GP, 100 iterations";
+      configs[2].opt.iterations = 100;
+      configs[3].name = "FISTA-TV, 20 x 10 iterations";
+      configs[3].opt.iterations = 20;
+      configs[3].opt.solver = Solver::tv;
+      std::printf("\nmissing-cone solvers (TV weight %.0e)\n\n", double(configs[3].opt.tv_weight));
+      std::printf("| solver | CPU (ms) | CUDA (ms) | RMSE | nucleus mean |\n");
+      std::printf("|---|---:|---:|---:|---:|\n");
+      for (auto& c : configs) {
+        OdtResult r;
+        double t_cpu = -1;
+        if (use_cpu) t_cpu = time_ms([&] { r = reconstruct(ryt, illum, geom, c.opt); });
+        double t_gpu = -1;
+        if (gpu) {
+          c.opt.backend = Backend::cuda;
+          OdtResult g = reconstruct(ryt, illum, geom, c.opt);
+          if (!use_cpu) r = std::move(g);
+          std::vector<double> t;
+          for (int i = 0; i < repeat; ++i) {
+            t.push_back(time_ms([&] { (void)reconstruct(ryt, illum, geom, c.opt); }));
+          }
+          t_gpu = median(t);
+        }
+        const auto [rmse, nuc] = score(r.ri);
+        const auto ms = [](double v) {
+          return v < 0 ? std::string("-") : std::to_string(std::lround(v));
+        };
+        std::printf("| %s | %s | %s | %.3e | %.4f |\n", c.name, ms(t_cpu).c_str(),
+                    ms(t_gpu).c_str(), rmse, nuc);
+      }
     }
   }
+#ifdef QORAHOLO_HAS_CUDA
+  if (gpu) {
+    // FGP kernel variants of the TV solver. One FGP step costs (solve with 10 dual steps -
+    // solve with 0) / (20 * 10). Traffic model per step, in volumes of n^3 floats: separate
+    // reads b, r and writes z, then reads z, p, r and writes p, r (18); fused and tiled read b,
+    // r, p and write p, r (13), assuming neighbour reads come from cache or shared memory.
+    OdtOptions tv;
+    tv.iterations = 20;
+    tv.solver = Solver::tv;
+    OdtOptions tv0 = tv;
+    tv0.tv_inner = 0;
+    std::printf("\nTV kernels, 20 outer x 10 dual iterations\n\n");
+    std::printf("| FGP step | solve (ms) | per FGP step (ms) | traffic model (GB/s) | ");
+    std::printf("max |diff| vs separate | RMSE |\n|---|---:|---:|---:|---:|---:|\n");
+    OdtResult separate;
+    const double volume_bytes = double(n) * n * n * sizeof(float);
+    for (TvKernel k : {TvKernel::separate, TvKernel::fused, TvKernel::tiled, TvKernel::marching}) {
+      OdtResult r;
+      const auto run = [&](const OdtOptions& o, OdtResult& out) {
+        return profile(
+                   [&](OdtTimings* t) {
+                     return cuda::reconstruct(ryt, illum, grid, geom, o, t, k);
+                   },
+                   out)
+            .solve;
+      };
+      OdtResult r0;
+      const double t10 = run(tv, r);
+      const double t0 = run(tv0, r0);
+      const double step = (t10 - t0) / (20.0 * 10.0);
+      const double volumes = k == TvKernel::separate ? 18.0 : 13.0;
+      if (k == TvKernel::separate) separate = r;
+      double worst = 0;
+      for (std::size_t i = 0; i < r.ri.size(); ++i) {
+        worst = std::max(worst, std::abs(double(r.ri.data[i]) - separate.ri.data[i]));
+      }
+      const char* name = k == TvKernel::separate ? "separate (2 kernels)"
+                         : k == TvKernel::fused  ? "fused (1 kernel)"
+                         : k == TvKernel::tiled  ? "fused, 16x8x4 shared-memory tiles"
+                                                 : "fused, 32x8 tiles marching along z";
+      std::printf("| %s | %.1f | %.3f | %.0f | %.1e | %.3e |\n", name, t10, step,
+                  volumes * volume_bytes / (step * 1e6), worst, score(r.ri).first);
+    }
+  }
+#endif
+
+  if (tv_only) return 0;
 
   // End to end: holograms in, index out.
   PipelineOptions po;
