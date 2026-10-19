@@ -16,6 +16,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "backends.hpp"
@@ -146,10 +147,10 @@ int main(int argc, char** argv) {
 
   const auto grid = make_grid(n, n, geom);
   OdtOptions r2c_opt;
-  r2c_opt.gp_iterations = gp;
+  r2c_opt.iterations = gp;
   OdtOptions c2c_opt = r2c_opt;
   c2c_opt.gp_transform = GpTransform::c2c;
-  OdtOptions scatter_opt = r2c_opt;
+  [[maybe_unused]] OdtOptions scatter_opt = r2c_opt;
   scatter_opt.mapping = Mapping::scatter;
 
   // Median of every stage over `repeat` runs.
@@ -164,7 +165,7 @@ int main(int argc, char** argv) {
     OdtTimings out = runs.back();
     for (auto f :
          {&OdtTimings::setup, &OdtTimings::upload, &OdtTimings::fft2, &OdtTimings::mapping,
-          &OdtTimings::normalize, &OdtTimings::gp, &OdtTimings::finish, &OdtTimings::download}) {
+          &OdtTimings::normalize, &OdtTimings::solve, &OdtTimings::finish, &OdtTimings::download}) {
       out.*f = med(f);
     }
     return out;
@@ -209,9 +210,9 @@ int main(int argc, char** argv) {
   rows.push_back({"ODT: Ewald mapping (scatter, atomics)", -1, gpu_or_dash(scatter_t.mapping)});
   rows.push_back({"ODT: normalise", cpu_t.normalize, gpu_or_dash(gather_t.normalize)});
   rows.push_back(
-      {"ODT: GP iterations + final 3D IFFT, R2C/C2R", cpu_t.gp, gpu_or_dash(gather_t.gp)});
+      {"ODT: GP iterations + final 3D IFFT, R2C/C2R", cpu_t.solve, gpu_or_dash(gather_t.solve)});
   rows.push_back(
-      {"ODT: GP iterations + final 3D IFFT, C2C", cpu_c2c_t.gp, gpu_or_dash(gpu_c2c_t.gp)});
+      {"ODT: GP iterations + final 3D IFFT, C2C", cpu_c2c_t.solve, gpu_or_dash(gpu_c2c_t.solve)});
   rows.push_back({"ODT: potential to index", cpu_t.finish, gpu_or_dash(gather_t.finish)});
   rows.push_back({"ODT: host-device copies", -1, gpu_or_dash(gather_t.upload + gather_t.download)});
   rows.push_back({"ODT: allocations and cuFFT plans (host)", -1, gpu_or_dash(gather_t.setup)});
@@ -225,40 +226,77 @@ int main(int argc, char** argv) {
   }
   std::printf("\nrelative RI-contrast difference R2C vs C2C (CPU): %.2e\n",
               contrast_error(cpu_result.ri, cpu_c2c.ri, geom.n_medium));
-  {
-    const auto truth = render_phantom(cell, geom, n, n);
-    const auto score = [&](const Array3<float>& ri) {
-      double sq = 0;
-      double inner = 0;
-      int count = 0;
-      const Sphere& nuc = cell[1];
-      for (int z = 0; z < n; ++z) {
-        for (int y = 0; y < n; ++y) {
-          for (int x = 0; x < n; ++x) {
-            const double e = ri(z, y, x) - truth(z, y, x);
-            sq += e * e;
-            const double dz = (z - n / 2) * geom.pixel - nuc.z;
-            const double dy = (y - n / 2) * geom.pixel - nuc.y;
-            const double dx = (x - n / 2) * geom.pixel - nuc.x;
-            if (dz * dz + dy * dy + dx * dx < 0.36 * nuc.radius * nuc.radius) {
-              inner += ri(z, y, x);
-              ++count;
-            }
+  const auto truth = render_phantom(cell, geom, n, n);
+  // RMSE against the phantom over the volume and mean index in the inner 60% of the nucleus.
+  const auto score = [&](const Array3<float>& ri) {
+    double sq = 0;
+    double inner = 0;
+    int count = 0;
+    const Sphere& nuc = cell[1];
+    for (int z = 0; z < n; ++z) {
+      for (int y = 0; y < n; ++y) {
+        for (int x = 0; x < n; ++x) {
+          const double e = ri(z, y, x) - truth(z, y, x);
+          sq += e * e;
+          const double dz = (z - n / 2) * geom.pixel - nuc.z;
+          const double dy = (y - n / 2) * geom.pixel - nuc.y;
+          const double dx = (x - n / 2) * geom.pixel - nuc.x;
+          if (dz * dz + dy * dy + dx * dx < 0.36 * nuc.radius * nuc.radius) {
+            inner += ri(z, y, x);
+            ++count;
           }
         }
       }
-      std::printf("RMSE %.3e, nucleus mean %.4f", std::sqrt(sq / double(ri.size())), inner / count);
-    };
-    std::printf("against the phantom (nucleus %.4f): R2C ", cell[1].n);
-    score(cpu_result.ri);
-    std::printf("; C2C ");
-    score(cpu_c2c.ri);
-    std::printf("\n");
+    }
+    return std::pair{std::sqrt(sq / double(ri.size())), inner / count};
+  };
+  {
+    const auto [r2c_rmse, r2c_nuc] = score(cpu_result.ri);
+    const auto [c2c_rmse, c2c_nuc] = score(cpu_c2c.ri);
+    std::printf("against the phantom (nucleus %.4f): R2C RMSE %.3e, nucleus mean %.4f; ", cell[1].n,
+                r2c_rmse, r2c_nuc);
+    std::printf("C2C RMSE %.3e, nucleus mean %.4f\n", c2c_rmse, c2c_nuc);
   }
   if (gpu) {
     std::printf(
         "relative RI-contrast difference CUDA vs CPU: gather %.2e, scatter %.2e, C2C %.2e\n",
         odt_err, scatter_err, c2c_err);
+  }
+
+  // Missing-cone solvers on the same Rytov fields. CPU: one run; CUDA: median of `repeat`.
+  {
+    struct Config {
+      const char* name;
+      OdtOptions opt;
+    };
+    std::vector<Config> configs(4);
+    configs[0].name = "Rytov ODT, no iterations";
+    configs[1].name = "GP, 20 iterations";
+    configs[1].opt.iterations = 20;
+    configs[2].name = "GP, 100 iterations";
+    configs[2].opt.iterations = 100;
+    configs[3].name = "FISTA-TV, 20 x 10 iterations";
+    configs[3].opt.iterations = 20;
+    configs[3].opt.solver = Solver::tv;
+    std::printf("\nmissing-cone solvers (TV weight %.0e)\n\n", double(configs[3].opt.tv_weight));
+    std::printf("| solver | CPU (ms) | CUDA (ms) | RMSE | nucleus mean |\n");
+    std::printf("|---|---:|---:|---:|---:|\n");
+    for (auto& c : configs) {
+      OdtResult r;
+      const double t_cpu = time_ms([&] { r = reconstruct(ryt, illum, geom, c.opt); });
+      const auto [rmse, nuc] = score(r.ri);
+      double t_gpu = -1;
+      if (gpu) {
+        c.opt.backend = Backend::cuda;
+        (void)reconstruct(ryt, illum, geom, c.opt);
+        std::vector<double> t;
+        for (int i = 0; i < repeat; ++i) {
+          t.push_back(time_ms([&] { (void)reconstruct(ryt, illum, geom, c.opt); }));
+        }
+        t_gpu = median(t);
+      }
+      std::printf("| %s | %.0f | %.0f | %.3e | %.4f |\n", c.name, t_cpu, t_gpu, rmse, nuc);
+    }
   }
 
   // End to end: holograms in, index out.
@@ -268,7 +306,7 @@ int main(int argc, char** argv) {
   po.field = fo;
   po.illuminations = illum;
   po.geometry = geom;
-  po.odt.gp_iterations = gp;
+  po.odt.iterations = gp;
   std::vector<Row> e2e;
   {
     Row r{"per-call functions, host in / host out"};
