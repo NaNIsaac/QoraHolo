@@ -46,6 +46,23 @@ TEST_F(Cuda, FieldExtractionMatchesCpu) {
             1e-4);
 }
 
+// The GPU reads R2C half spectra; a crop that straddles k_x = 0 needs the conjugate bins.
+TEST_F(Cuda, FieldExtractionAcrossZeroKx) {
+  const auto illum = circular_scan(3, 0.5f, geom);
+  Geometry hg = geom;
+  hg.pixel = 0.05f;
+  const float df = 1.0f / (128 * hg.pixel);
+  const auto ratio = forward_fields(spheres, illum, hg, 128, ScatteringModel::rytov);
+  const auto holo =
+      synthesize_holograms(ratio, illum, hg, {{-30.0f * df, 4.0f * df}, 1.0f, 0.02f, 1});
+  FieldOptions fo;
+  fo.center = {-30.0f, 4.0f};
+  fo.radius = 12.0f;
+  fo.output_size = 32;
+  EXPECT_LT(relative_error(extract_fields(holo, fo, Backend::cuda), extract_fields(holo, fo)),
+            1e-4);
+}
+
 TEST_F(Cuda, UnwrapAndRytovMatchCpu) {
   const auto illum = circular_scan(5, 0.8f, geom);
   const auto ratio = forward_fields(spheres, illum, geom, 64, ScatteringModel::rytov);

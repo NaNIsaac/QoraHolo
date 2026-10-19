@@ -1,7 +1,7 @@
 #include <algorithm>
 
 #include "backends.hpp"
-#include "cuda/util.cuh"
+#include "cuda/stages.cuh"
 
 namespace qoraholo::cuda {
 
@@ -12,12 +12,8 @@ namespace {
 
 struct Shape {
   int nz, ny, nx;
-  __device__ std::size_t size() const { return std::size_t(nz) * ny * nx; }
+  __host__ __device__ std::size_t size() const { return std::size_t(nz) * ny * nx; }
 };
-
-__device__ __forceinline__ std::size_t grid_index() {
-  return blockIdx.x * std::size_t(blockDim.x) + threadIdx.x;
-}
 
 __global__ void divergence(const float* psi, float* rho, Shape s) {
   const std::size_t i = grid_index();
@@ -124,34 +120,6 @@ __global__ void add_congruence(float* phi, const double* sums, int plane, std::s
   phi[i] += static_cast<float>(atan2(sums[2 * z + 1], sums[2 * z]));
 }
 
-void dct_axis(float* a, float2* buf, Shape s, int axis, bool forward) {
-  const std::size_t total = std::size_t(s.nz) * s.ny * s.nx;
-  const unsigned grid = blocks_for(total);
-  if (forward) {
-    dct_reorder<<<grid, 256>>>(a, buf, s, axis);
-  } else {
-    idct_twiddle<<<grid, 256>>>(a, buf, s, axis);
-  }
-  check_launch("dct prepare");
-  if (axis == 2) {
-    FftPlan plan(s.nx, 1, s.nx, s.nz * s.ny);
-    forward ? plan.forward(buf) : plan.inverse(buf);
-  } else {
-    // Columns of one image are a strided batch; images are not, so step through them.
-    FftPlan plan(s.ny, s.nx, 1, s.nx);
-    for (int z = 0; z < s.nz; ++z) {
-      float2* p = buf + std::size_t(z) * s.ny * s.nx;
-      forward ? plan.forward(p) : plan.inverse(p);
-    }
-  }
-  if (forward) {
-    dct_twiddle<<<grid, 256>>>(buf, a, s, axis);
-  } else {
-    idct_reorder<<<grid, 256>>>(buf, a, s, axis);
-  }
-  check_launch("dct finish");
-}
-
 // Border sums per image, blockIdx.y is the image.
 __global__ void border_sums(const float* phi, Shape s, double* sums) {
   const int z = static_cast<int>(blockIdx.y);
@@ -173,15 +141,8 @@ __global__ void border_sums(const float* phi, Shape s, double* sums) {
   atomicAdd(&sums[z], double(phi[(std::size_t(z) * s.ny + y) * s.nx + x]));
 }
 
-__global__ void split_ratio(const float2* ratio, float* psi, float* logamp, std::size_t total) {
-  const std::size_t i = grid_index();
-  if (i >= total) return;
-  psi[i] = atan2f(ratio[i].y, ratio[i].x);
-  logamp[i] = logf(hypotf(ratio[i].x, ratio[i].y));
-}
-
-__global__ void assemble_rytov(const float* logamp, const float* phi, const double* border,
-                               double perimeter, int plane, float2* out, std::size_t total) {
+__global__ void assemble_rytov_kernel(const float* logamp, const float* phi, const double* border,
+                                      double perimeter, int plane, float2* out, std::size_t total) {
   const std::size_t i = grid_index();
   if (i >= total) return;
   const std::size_t z = i / plane;
@@ -192,35 +153,93 @@ __global__ void assemble_rytov(const float* logamp, const float* phi, const doub
 
 }  // namespace
 
-void unwrap_device(const float* psi, float* phi, int nz, int ny, int nx) {
-  const Shape s{nz, ny, nx};
-  const std::size_t total = std::size_t(nz) * ny * nx;
-  const unsigned grid = blocks_for(total);
-  divergence<<<grid, 256>>>(psi, phi, s);
-  check_launch("divergence");
-  DeviceBuffer<float2> buf(total);
-  dct_axis(phi, buf.get(), s, 2, true);
-  dct_axis(phi, buf.get(), s, 1, true);
-  poisson_divide<<<grid, 256>>>(phi, s);
-  check_launch("poisson_divide");
-  dct_axis(phi, buf.get(), s, 1, false);
-  dct_axis(phi, buf.get(), s, 2, false);
+Unwrapper::Unwrapper(int count, int ny, int nx)
+    : count_(count),
+      ny_(ny),
+      nx_(nx),
+      buf_(std::size_t(count) * ny * nx),
+      sums_(3 * std::size_t(count)),
+      plan_x_(1, &nx, count * ny, CUFFT_C2C),
+      // Columns of one image are a strided batch; images are not, so this plan runs per image.
+      plan_y_(1, &ny, nx, CUFFT_C2C, {&ny, nx, 1}, {&ny, nx, 1}),
+      plan_list_{&plan_x_, &plan_y_} {}
 
-  DeviceBuffer<double> sums(2 * std::size_t(nz));
-  sums.zero();
-  const int plane = ny * nx;
-  const dim3 rgrid(std::min(64u, blocks_for(plane)), nz);
-  congruence_sums<<<rgrid, 256>>>(psi, phi, plane, sums.get());
+void Unwrapper::set_stream(cudaStream_t s) {
+  stream_ = s;
+  plan_x_.set_stream(s);
+  plan_y_.set_stream(s);
+}
+
+void Unwrapper::dct(float* a, int axis, bool forward) {
+  const Shape s{count_, ny_, nx_};
+  const std::size_t total = s.size();
+  const unsigned grid = blocks_for(total);
+  float2* buf = buf_.get();
+  if (forward) {
+    dct_reorder<<<grid, 256, 0, stream_>>>(a, buf, s, axis);
+  } else {
+    idct_twiddle<<<grid, 256, 0, stream_>>>(a, buf, s, axis);
+  }
+  check_launch("dct prepare");
+  const int direction = forward ? CUFFT_FORWARD : CUFFT_INVERSE;
+  if (axis == 2) {
+    plan_x_.c2c(buf, buf, direction);
+  } else {
+    for (int z = 0; z < count_; ++z) {
+      float2* p = buf + std::size_t(z) * ny_ * nx_;
+      plan_y_.c2c(p, p, direction);
+    }
+  }
+  if (forward) {
+    dct_twiddle<<<grid, 256, 0, stream_>>>(buf, a, s, axis);
+  } else {
+    idct_reorder<<<grid, 256, 0, stream_>>>(buf, a, s, axis);
+  }
+  check_launch("dct finish");
+}
+
+void Unwrapper::unwrap(const float* psi, float* phi) {
+  const Shape s{count_, ny_, nx_};
+  const std::size_t total = s.size();
+  const unsigned grid = blocks_for(total);
+  divergence<<<grid, 256, 0, stream_>>>(psi, phi, s);
+  check_launch("divergence");
+  dct(phi, 2, true);
+  dct(phi, 1, true);
+  poisson_divide<<<grid, 256, 0, stream_>>>(phi, s);
+  check_launch("poisson_divide");
+  dct(phi, 1, false);
+  dct(phi, 2, false);
+
+  check(cudaMemsetAsync(sums_.get(), 0, 2 * count_ * sizeof(double), stream_), "cudaMemset");
+  const int plane = ny_ * nx_;
+  const dim3 rgrid(std::min(64u, blocks_for(plane)), count_);
+  congruence_sums<<<rgrid, 256, 0, stream_>>>(psi, phi, plane, sums_.get());
   check_launch("congruence_sums");
-  add_congruence<<<grid, 256>>>(phi, sums.get(), plane, total);
+  add_congruence<<<grid, 256, 0, stream_>>>(phi, sums_.get(), plane, total);
   check_launch("add_congruence");
 }
 
+void Unwrapper::assemble_rytov(const float* logamp, const float* phi, float2* out) {
+  const Shape s{count_, ny_, nx_};
+  const std::size_t total = s.size();
+  const int perimeter = 2 * nx_ + 2 * (ny_ - 2);
+  double* border = sums_.get() + 2 * count_;
+  check(cudaMemsetAsync(border, 0, count_ * sizeof(double), stream_), "cudaMemset");
+  border_sums<<<dim3(blocks_for(perimeter), count_), 256, 0, stream_>>>(phi, s, border);
+  check_launch("border_sums");
+  assemble_rytov_kernel<<<blocks_for(total), 256, 0, stream_>>>(
+      logamp, phi, border, double(perimeter), ny_ * nx_, out, total);
+  check_launch("assemble_rytov");
+}
+
 Array3<float> unwrap(const Array3<float>& wrapped) {
+  Unwrapper u(wrapped.nz, wrapped.ny, wrapped.nx);
+  const FftWorkArea work(u.plans());
   DeviceBuffer<float> psi(wrapped.size());
   DeviceBuffer<float> phi(wrapped.size());
   psi.upload(wrapped.data.data());
-  unwrap_device(psi.get(), phi.get(), wrapped.nz, wrapped.ny, wrapped.nx);
+  u.unwrap(psi.get(), phi.get());
   Array3<float> out(wrapped.nz, wrapped.ny, wrapped.nx);
   phi.download(out.data.data());
   return out;
@@ -228,25 +247,16 @@ Array3<float> unwrap(const Array3<float>& wrapped) {
 
 Array3<cfloat> rytov(const Array3<cfloat>& ratio) {
   const std::size_t total = ratio.size();
-  const unsigned grid = blocks_for(total);
+  Unwrapper u(ratio.nz, ratio.ny, ratio.nx);
+  const FftWorkArea work(u.plans());
   DeviceBuffer<float2> r(total);
   r.upload(ratio.data.data());
   DeviceBuffer<float> psi(total);
   DeviceBuffer<float> logamp(total);
-  split_ratio<<<grid, 256>>>(r.get(), psi.get(), logamp.get(), total);
-  check_launch("split_ratio");
+  split_ratio(r.get(), total, psi.get(), logamp.get(), nullptr);
   DeviceBuffer<float> phi(total);
-  unwrap_device(psi.get(), phi.get(), ratio.nz, ratio.ny, ratio.nx);
-
-  const Shape s{ratio.nz, ratio.ny, ratio.nx};
-  const int perimeter = 2 * s.nx + 2 * (s.ny - 2);
-  DeviceBuffer<double> border(std::size_t(ratio.nz));
-  border.zero();
-  border_sums<<<dim3(blocks_for(perimeter), ratio.nz), 256>>>(phi.get(), s, border.get());
-  check_launch("border_sums");
-  assemble_rytov<<<grid, 256>>>(logamp.get(), phi.get(), border.get(), double(perimeter),
-                                ratio.ny * ratio.nx, r.get(), total);
-  check_launch("assemble_rytov");
+  u.unwrap(psi.get(), phi.get());
+  u.assemble_rytov(logamp.get(), phi.get(), r.get());
   Array3<cfloat> out(ratio.nz, ratio.ny, ratio.nx);
   r.download(out.data.data());
   return out;

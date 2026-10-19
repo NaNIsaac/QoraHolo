@@ -19,8 +19,10 @@ struct CropPlan {
 };
 
 // Stage times of reconstruct() in milliseconds, filled when a pointer is passed (benchmark).
-// On CUDA the device stages are timed with events and exclude the transfers.
+// On CUDA the device stages are timed with events and exclude the transfers; setup is the
+// host time for allocations and cuFFT plans.
 struct OdtTimings {
+  double setup = 0;
   double upload = 0;
   double fft2 = 0;
   double mapping = 0;
