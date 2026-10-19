@@ -355,7 +355,7 @@ int main(int argc, char** argv) {
     tv0.tv_inner = 0;
     std::printf("\nTV kernels, 20 outer x 10 dual iterations\n\n");
     std::printf("| FGP step | solve (ms) | per FGP step (ms) | traffic model (GB/s) | ");
-    std::printf("max |diff| vs separate | RMSE |\n|---|---:|---:|---:|---:|---:|\n");
+    std::printf("max abs diff vs separate | RMSE |\n|---|---:|---:|---:|---:|---:|\n");
     OdtResult separate;
     const double volume_bytes = double(n) * n * n * sizeof(float);
     for (TvKernel k : {TvKernel::separate, TvKernel::fused, TvKernel::tiled, TvKernel::marching}) {
