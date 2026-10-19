@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  linux-gcc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: sudo apt-get update && sudo apt-get install -y ninja-build
+      - run: cmake --preset cpu-release -DQORAHOLO_WERROR=ON
+      - run: cmake --build --preset cpu-release
+      - run: ctest --preset cpu-release
+
+  windows-msvc:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: cmake -S . -B build -DQORAHOLO_WERROR=ON
+      - run: cmake --build build --config Release
+      - run: ctest --test-dir build -C Release --output-on-failure
+
+  cuda-compile:
+    # No GPU on the runner: everything is compiled and the CUDA tests skip themselves.
+    runs-on: ubuntu-latest
+    container: nvidia/cuda:13.4.3-devel-ubuntu24.04
+    steps:
+      - run: apt-get update && apt-get install -y cmake ninja-build git ca-certificates
+      - uses: actions/checkout@v7
+      - run: >
+          cmake --preset cuda-release -DQORAHOLO_WERROR=ON
+          -DCMAKE_CUDA_ARCHITECTURES="75;86;89;120"
+      - run: cmake --build --preset cuda-release
+      - run: ctest --preset cuda-release
+
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.0
+      - run: uv build --wheel
+      - run: uv venv && uv pip install dist/*.whl pytest
+      - run: .venv/bin/python -m pytest -q
