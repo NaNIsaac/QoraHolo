@@ -62,7 +62,7 @@ uv build --wheel                                    # CPU only
 CMAKE_ARGS="-DQORAHOLO_CUDA=ON" uv build --wheel    # with the CUDA backend
 ```
 
-On Windows the CUDA build loads cuFFT from `%CUDA_PATH%in`.
+On Windows the CUDA build loads cuFFT from `%CUDA_PATH%\bin`.
 
 ```python
 import qoraholo as qh
