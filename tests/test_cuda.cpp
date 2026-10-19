@@ -1,8 +1,10 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cmath>
 #include <vector>
 
+#include "backends.hpp"
 #include "qoraholo/qoraholo.hpp"
 
 using namespace qoraholo;
@@ -111,3 +113,26 @@ TEST_F(Cuda, TvMatchesCpu) {
   for (auto& v : db.data) v -= geom.n_medium;
   EXPECT_LT(relative_error(db, da), 1e-4);
 }
+
+#ifdef QORAHOLO_HAS_CUDA
+// The fused and tiled FGP kernels do the arithmetic of the two-kernel version in the same
+// order. 60 x 60 x 62 leaves partial tiles along every axis.
+TEST_F(Cuda, TvKernelVariantsAgree) {
+  const auto illum = circular_scan(25, 0.9f, geom);
+  const auto fields = rytov(forward_fields(spheres, illum, geom, 60, ScatteringModel::rytov));
+  OdtOptions opt;
+  opt.nz = 62;
+  opt.iterations = 5;
+  opt.solver = Solver::tv;
+  const auto grid = make_grid(60, 62, geom);
+  const auto ref = cuda::reconstruct(fields, illum, grid, geom, opt, nullptr, TvKernel::separate);
+  for (TvKernel k : {TvKernel::fused, TvKernel::tiled, TvKernel::marching}) {
+    const auto got = cuda::reconstruct(fields, illum, grid, geom, opt, nullptr, k);
+    double worst = 0;
+    for (std::size_t i = 0; i < got.ri.size(); ++i) {
+      worst = std::max(worst, std::abs(double(got.ri.data[i]) - ref.ri.data[i]));
+    }
+    EXPECT_LT(worst, 1e-6);
+  }
+}
+#endif

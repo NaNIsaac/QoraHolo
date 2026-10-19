@@ -89,6 +89,7 @@ class OdtSolver {
   [[nodiscard]] std::span<FftPlan* const> plans() { return plan_list_; }
   void set_stream(cudaStream_t s);
   void set_illuminations(std::span<const Illumination> illum);
+  void set_tv_kernel(TvKernel k) { tv_kernel_ = k; }
 
   // Marks recorded by run() after each of its stages, in this order.
   enum Mark { fft2, clear, mapping, normalize, solve, finish, marks };
@@ -113,6 +114,7 @@ class OdtSolver {
   bool tv_;
   bool real_;
   int tv_inner_;
+  TvKernel tv_kernel_ = TvKernel::fused;
   float lambda_ = 0;
   std::size_t half_;
   float nm2_;

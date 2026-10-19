@@ -39,6 +39,12 @@ struct OdtTimings {
   double download = 0;
 };
 
+// CUDA kernels for one FGP step of the TV solver: a primal and a dual kernel; both fused into
+// one (the default, fastest when measured); the fused kernel on 3D shared-memory tiles; or on
+// x-y tiles that walk along z with two planes in shared memory. Selectable for the benchmark
+// and the tests; all do the same arithmetic.
+enum class TvKernel { separate, fused, tiled, marching };
+
 // k-space grid constants for fields of side n reconstructed into nz axial voxels.
 detail::OdtGrid make_grid(int n, int nz, const Geometry& geometry);
 
@@ -83,7 +89,8 @@ Array3<float> unwrap(const Array3<float>& wrapped);
 Array3<cfloat> rytov(const Array3<cfloat>& ratio);
 OdtResult reconstruct(const Array3<cfloat>& rytov_fields, std::span<const Illumination> illum,
                       const detail::OdtGrid& grid, const Geometry& geometry,
-                      const OdtOptions& options, OdtTimings* timings = nullptr);
+                      const OdtOptions& options, OdtTimings* timings = nullptr,
+                      TvKernel tv_kernel = TvKernel::fused);
 }  // namespace cuda
 #endif
 
