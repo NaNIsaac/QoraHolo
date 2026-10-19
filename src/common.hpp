@@ -66,4 +66,11 @@ QH_HD bool ewald_target(const OdtGrid& g, int ky, int kx, float fiy, float fix, 
   return true;
 }
 
+// Real part of the principal sqrt(n_m^2 + O / k0^2): refractive index from scattering potential.
+QH_HD float index_from_potential(float re, float im, float nm2, float inv_k02) {
+  const float a = nm2 + re * inv_k02;
+  const float b = im * inv_k02;
+  return sqrtf(0.5f * (hypotf(a, b) + a));
+}
+
 }  // namespace qoraholo::detail

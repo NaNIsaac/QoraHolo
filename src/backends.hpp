@@ -18,12 +18,25 @@ struct CropPlan {
   int out;
 };
 
+// Stage times of reconstruct() in milliseconds, filled when a pointer is passed (benchmark).
+// On CUDA the device stages are timed with events and exclude the transfers.
+struct OdtTimings {
+  double upload = 0;
+  double fft2 = 0;
+  double mapping = 0;
+  double normalize = 0;
+  double gp = 0;
+  double finish = 0;
+  double download = 0;
+};
+
 namespace cpu {
 Array3<cfloat> extract_fields(const Array3<float>& holograms, const CropPlan& plan);
 Array3<float> unwrap(const Array3<float>& wrapped);
 Array3<cfloat> rytov(const Array3<cfloat>& ratio);
 OdtResult reconstruct(const Array3<cfloat>& rytov_fields, std::span<const Illumination> illum,
-                      const detail::OdtGrid& grid, const Geometry& geometry, int gp_iterations);
+                      const detail::OdtGrid& grid, const Geometry& geometry, int gp_iterations,
+                      OdtTimings* timings = nullptr);
 }  // namespace cpu
 
 #ifdef QORAHOLO_HAS_CUDA
@@ -34,7 +47,7 @@ Array3<float> unwrap(const Array3<float>& wrapped);
 Array3<cfloat> rytov(const Array3<cfloat>& ratio);
 OdtResult reconstruct(const Array3<cfloat>& rytov_fields, std::span<const Illumination> illum,
                       const detail::OdtGrid& grid, const Geometry& geometry, int gp_iterations,
-                      Mapping mapping);
+                      Mapping mapping, OdtTimings* timings = nullptr);
 }  // namespace cuda
 #endif
 
