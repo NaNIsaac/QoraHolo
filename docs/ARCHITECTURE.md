@@ -73,8 +73,8 @@ Both kernels compute the same `ewald_target` for each (illumination, lateral bin
 - **scatter**: one thread per (illumination, pixel), `atomicAdd` on the real part, the
   imaginary part and the hit count.
 
-Measured on the RTX 5070, kernel only: 0.09 ms against 0.10 ms at 256³; 0.62 ms against
-0.84 ms at 512³ in an earlier run (49 illuminations). Zeroing the volume and hit counts
+Measured on the RTX 5070, kernel only: 0.09 ms against 0.10 ms at 256³, 0.66 ms against
+0.86 ms at 512³ (49 illuminations). Zeroing the volume and hit counts
 before the mapping takes longer than the mapping itself at 256³ (0.30 ms). Either way it is
 about 1% of the GPU reconstruction, which the 3D FFTs of the missing-cone loop dominate. The
 results are identical to the printed precision; float summation order differs, so they are

@@ -186,7 +186,7 @@ background.
 
 ```
 qoraholo_bench --field 256 --repeat 5     # 512² holograms, 49 angles, 256³, 10 GP iterations
-qoraholo_bench --field 512 --repeat 3     # 1024² holograms, 49 angles, 512³
+qoraholo_bench --field 512 --repeat 3 --cpu 0   # 1024² holograms, 49 angles, 512³, CUDA only
 ```
 
 Measured on an AMD Ryzen 5 7500F (6 cores) and an NVIDIA GeForce RTX 5070 (12 GB), Windows 11,
@@ -291,26 +291,36 @@ CUDA field and Rytov times in this table are wall-clock and include copies and p
 Relative difference of the index contrast between CUDA and CPU: 3.8e-6 (gather and scatter),
 3.9e-6 through the Pipeline.
 
-**512³** (1024² holograms). The final 512³ run was stopped before it started measuring
-because the machine ran low on memory, so these numbers come from two earlier runs of the
-same benchmark, the first before the R2C loop existed (other GPU use was not checked then).
-During the second, another process
-(a different project's benchmark) was computing on the same GPU, and its per-call CUDA times
-came out about twice as slow as in the first run; those are not listed. Single numbers here
-are less reliable than the 256³ tables.
+**512³** (1024² holograms), `qoraholo_bench --field 512 --repeat 3 --cpu 0`: CUDA only,
+because the CPU solver runs at this size need several GiB of host memory and the machine is
+shared. The run held the GPU benchmark lock, and `nvidia-smi`, sampled every 5 s, showed no
+other compute process. Medians of 3 runs, milliseconds.
 
-| | C2C (first run) | R2C/C2R (second run) |
-|---|---:|---:|
-| `Pipeline::process()`, CUDA | 346 ms | 221 ms |
-| of which 10 GP iterations + final inverse | 301 ms | 177 ms |
-| `Pipeline` device memory | 3.32 GiB | 2.39 GiB |
-| per-call chain, CUDA | 605 ms | - |
-| 10 GP iterations, CPU | 10640 ms | 6594 ms (C2C in the same run: 11437 ms) |
-| reconstruction memory, CUDA | - | 1.57 GiB (C2C in the same run: 2.50 GiB) |
+| | CUDA |
+|---|---:|
+| per-call functions, host in / host out, 10 GP iterations | 442 |
+| `Pipeline::process()`, 10 GP iterations | 222 |
+| of which 10 GP iterations + final inverse, R2C/C2R | 178 |
+| upload of the holograms (196 MiB) / download of the volume (512 MiB), page-locked | 7.2 / 19 |
+| `Pipeline` constructor, once | 68 |
+| 10 GP iterations through `reconstruct`: R2C/C2R / C2C | 178 / 300 |
+| reconstruction device memory: R2C/C2R / C2C | 1.57 / 2.50 GiB |
+| `Pipeline` device memory | 2.39 GiB |
+| Ewald mapping, gather / scatter (kernel only) | 0.66 / 0.86 |
 
-Page-locked copies at 512³: 7.2 ms for the 196 MiB of holograms (15.5 ms pageable), 18.8 ms
-for the 512 MiB volume (33.3 ms pageable). Relative CUDA-CPU difference of the index
-contrast: 3.6e-5.
+| solver, per-call `reconstruct` | CUDA (ms) | RMSE | nucleus mean (true 1.3750) |
+|---|---:|---:|---:|
+| Rytov ODT, no iterations | 185 | 2.35e-3 | 1.3685 |
+| GP, 20 iterations | 447 | 8.72e-4 | 1.3761 |
+| GP, 100 iterations | 1765 | 8.93e-4 | 1.3773 |
+| FISTA-TV, 20 x 10 iterations | 4120 | 8.07e-4 | 1.3780 |
+
+The per-call times include the 0.5 GiB download and the plan creation. R2C and C2C differ
+by 5.3e-6 of the index contrast here as well. Without the CPU run there is no CUDA-versus-CPU
+check at this size; the previous phase measured 3.6e-5. Page-locked against pageable: 7.2
+against 11.8 ms for the holograms, 18.8 against 32.6 ms for the volume. The chunked upload
+saves 1.6 ms of 9.6 ms in upload plus field extraction and nothing measurable in
+`process()` (220.2, 219.4 and 220.0 ms for 1, 7 and 49 parts).
 
 ## Layout
 
