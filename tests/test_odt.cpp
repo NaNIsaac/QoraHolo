@@ -60,3 +60,27 @@ TEST(Odt, RecoversSphereIndexAndGpHelps) {
   EXPECT_NEAR(m1.inner_mean, 1.36, 4e-3);
   EXPECT_LT(m1.rmse, 0.7 * m0.rmse);
 }
+
+// The R2C loop reproduces the C2C iterates; only the imaginary part of the last inverse
+// transform, which C2C passes into the index, is dropped. That is second order in the contrast.
+TEST(Odt, RealGpMatchesComplexGp) {
+  const auto illum = circular_scan(49, 0.9f, kGeom);
+  const auto fields = rytov(forward_fields(kSphere, illum, kGeom, kN, ScatteringModel::rytov));
+  OdtOptions real;
+  real.gp_iterations = 10;
+  OdtOptions complex = real;
+  complex.gp_transform = GpTransform::c2c;
+  const auto a = reconstruct(fields, illum, kGeom, real);
+  const auto b = reconstruct(fields, illum, kGeom, complex);
+  double num = 0;
+  double den = 0;
+  for (std::size_t i = 0; i < a.ri.size(); ++i) {
+    const double d = double(a.ri.data[i]) - b.ri.data[i];
+    const double c = double(b.ri.data[i]) - kGeom.n_medium;
+    num += d * d;
+    den += c * c;
+  }
+  // Measured when written: 5e-6 relative.
+  EXPECT_LT(std::sqrt(num / den), 1e-4);
+  EXPECT_DOUBLE_EQ(a.filled, b.filled);
+}

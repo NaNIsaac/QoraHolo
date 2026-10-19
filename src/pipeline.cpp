@@ -41,7 +41,7 @@ class CpuPipeline final : public Pipeline::Impl {
     timings.rytov = since(t);
     OdtTimings odt;
     OdtResult r = cpu::reconstruct(phase, options_.illuminations, grid_, options_.geometry,
-                                   options_.odt.gp_iterations, &odt);
+                                   options_.odt, &odt);
     output_ = std::move(r.ri.data);
     filled = r.filled;
     timings.fft2 = odt.fft2;

@@ -19,7 +19,7 @@ class CudaPipeline final : public Pipeline::Impl {
         chunks_((o.count + chunk_ - 1) / chunk_),
         field_(n_, chunk_, count_, crop),
         unwrapper_(count_, m_, m_),
-        solver_(g, count_, o.geometry, o.odt.gp_iterations, o.odt.mapping),
+        solver_(g, count_, o.geometry, o.odt),
         input_(std::size_t(count_) * n_ * n_),
         output_(std::size_t(g.nz) * g.n * g.n),
         filled_(1),

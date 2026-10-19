@@ -3,6 +3,7 @@
 // Backend entry points behind the public dispatch in api.cpp. Arguments are validated there.
 
 #include <array>
+#include <cstddef>
 #include <memory>
 #include <span>
 
@@ -23,8 +24,10 @@ struct CropPlan {
 
 // Stage times of reconstruct() in milliseconds, filled when a pointer is passed (benchmark).
 // On CUDA the device stages are timed with events and exclude the transfers; setup is the
-// host time for allocations and cuFFT plans.
+// host time for allocations and cuFFT plans. bytes: memory held by the solver (device memory
+// on CUDA, measured; array sizes on CPU).
 struct OdtTimings {
+  std::size_t bytes = 0;
   double setup = 0;
   double upload = 0;
   double fft2 = 0;
@@ -65,8 +68,8 @@ Array3<cfloat> extract_fields(const Array3<float>& holograms, const CropPlan& pl
 Array3<float> unwrap(const Array3<float>& wrapped);
 Array3<cfloat> rytov(const Array3<cfloat>& ratio);
 OdtResult reconstruct(const Array3<cfloat>& rytov_fields, std::span<const Illumination> illum,
-                      const detail::OdtGrid& grid, const Geometry& geometry, int gp_iterations,
-                      OdtTimings* timings = nullptr);
+                      const detail::OdtGrid& grid, const Geometry& geometry,
+                      const OdtOptions& options, OdtTimings* timings = nullptr);
 }  // namespace cpu
 
 #ifdef QORAHOLO_HAS_CUDA
@@ -78,8 +81,8 @@ Array3<cfloat> extract_fields(const Array3<float>& holograms, const CropPlan& pl
 Array3<float> unwrap(const Array3<float>& wrapped);
 Array3<cfloat> rytov(const Array3<cfloat>& ratio);
 OdtResult reconstruct(const Array3<cfloat>& rytov_fields, std::span<const Illumination> illum,
-                      const detail::OdtGrid& grid, const Geometry& geometry, int gp_iterations,
-                      Mapping mapping, OdtTimings* timings = nullptr);
+                      const detail::OdtGrid& grid, const Geometry& geometry,
+                      const OdtOptions& options, OdtTimings* timings = nullptr);
 }  // namespace cuda
 #endif
 

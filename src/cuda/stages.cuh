@@ -4,7 +4,10 @@
 // device-resident Pipeline. Stages own their cuFFT plans and scratch buffers; the caller owns
 // inputs, outputs and the shared cuFFT work area.
 
+#include <cstdint>
+#include <optional>
 #include <span>
+#include <vector>
 
 #include "backends.hpp"
 #include "cuda/util.cuh"
@@ -76,12 +79,12 @@ class Unwrapper {
   FftPlan* plan_list_[2];
 };
 
-// Rytov fields -> refractive index: 2D FFT, Ewald mapping, normalisation, Gerchberg-Papoulis,
-// 3D inverse FFT, potential -> index.
+// Rytov fields -> refractive index: 2D FFT, Ewald mapping, normalisation, Gerchberg-Papoulis
+// (C2C, or R2C/C2R on half spectra), 3D inverse FFT, potential -> index.
 class OdtSolver {
  public:
-  OdtSolver(const detail::OdtGrid& grid, int count, const Geometry& geometry, int gp_iterations,
-            Mapping mapping);
+  OdtSolver(const detail::OdtGrid& grid, int count, const Geometry& geometry,
+            const OdtOptions& options);
 
   [[nodiscard]] std::span<FftPlan* const> plans() { return plan_list_; }
   void set_stream(cudaStream_t s);
@@ -99,7 +102,7 @@ class OdtSolver {
   [[nodiscard]] std::size_t pitch() const { return pitch_; }
   // Number of k-space voxels that received data, on the device.
   [[nodiscard]] const unsigned long long* filled() const { return filled_.get(); }
-  // Device memory held by the solver, without the cuFFT work area.
+  // Device memory held by the solver's buffers, without cuFFT plans and work area.
   [[nodiscard]] std::size_t bytes() const;
 
  private:
@@ -107,19 +110,24 @@ class OdtSolver {
   int count_;
   int gp_iterations_;
   Mapping mapping_;
+  bool real_;
+  std::size_t half_;
   float nm2_;
-  float inv_k02_;
+  float inv_k02_ = 0;
   cudaStream_t stream_ = nullptr;
   DeviceBuffer<float3> illum_;
   DeviceBuffer<float2> potential_;
   DeviceBuffer<float> weight_;
   DeviceBuffer<float2> measured_;
+  DeviceBuffer<std::uint8_t> hits_;
   DeviceBuffer<unsigned long long> filled_;
   const float* index_ = nullptr;
   std::size_t pitch_ = 0;
   FftPlan plan2_;
-  FftPlan plan3_;
-  FftPlan* plan_list_[2];
+  std::optional<FftPlan> plan3_;
+  std::optional<FftPlan> r2c_;
+  std::optional<FftPlan> c2r_;
+  std::vector<FftPlan*> plan_list_;
 };
 
 // Copies a pitched device volume of nz * n rows of n floats to dense host memory.

@@ -72,12 +72,19 @@ TEST_F(Cuda, UnwrapAndRytovMatchCpu) {
 TEST_F(Cuda, ReconstructionMatchesCpu) {
   const auto illum = circular_scan(25, 0.9f, geom);
   const auto fields = rytov(forward_fields(spheres, illum, geom, 64, ScatteringModel::rytov));
-  for (Mapping mapping : {Mapping::gather, Mapping::scatter}) {
+  struct Case {
+    Mapping mapping;
+    GpTransform transform;
+  };
+  for (const Case c :
+       {Case{Mapping::gather, GpTransform::r2c}, Case{Mapping::scatter, GpTransform::r2c},
+        Case{Mapping::gather, GpTransform::c2c}}) {
     OdtOptions cpu_opt;
     cpu_opt.gp_iterations = 5;
+    cpu_opt.gp_transform = c.transform;
     OdtOptions gpu_opt = cpu_opt;
     gpu_opt.backend = Backend::cuda;
-    gpu_opt.mapping = mapping;
+    gpu_opt.mapping = c.mapping;
     const auto a = reconstruct(fields, illum, geom, cpu_opt);
     const auto b = reconstruct(fields, illum, geom, gpu_opt);
     // Compare the index contrast; the medium index would hide differences.

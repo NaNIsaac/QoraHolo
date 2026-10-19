@@ -29,6 +29,38 @@ void fft(cfloat* data, const std::vector<std::size_t>& shape, const std::vector<
 
 namespace {
 
+pocketfft::stride_t dense_strides(const pocketfft::shape_t& shape, std::ptrdiff_t element) {
+  pocketfft::stride_t stride(shape.size());
+  for (std::size_t i = shape.size(); i-- > 0;) {
+    stride[i] = element;
+    element *= static_cast<std::ptrdiff_t>(shape[i]);
+  }
+  return stride;
+}
+
+}  // namespace
+
+void rfft3(const float* in, cfloat* out, int nz, int ny, int nx) {
+  const pocketfft::shape_t shape{std::size_t(nz), std::size_t(ny), std::size_t(nx)};
+  const pocketfft::shape_t half{std::size_t(nz), std::size_t(ny), std::size_t(nx / 2 + 1)};
+  pocketfft::r2c(shape, dense_strides(shape, sizeof(float)), dense_strides(half, sizeof(cfloat)),
+                 {0, 1, 2}, true, in, out, 1.0f, static_cast<std::size_t>(threads()));
+}
+
+void irfft3(cfloat* in, float* out, int nz, int ny, int nx, float scale) {
+  // pocketfft's multi-axis c2r copies the spectrum into a temporary; transforming the leading
+  // axes in place instead saves that allocation on every iteration.
+  const pocketfft::shape_t shape{std::size_t(nz), std::size_t(ny), std::size_t(nx)};
+  const pocketfft::shape_t half{std::size_t(nz), std::size_t(ny), std::size_t(nx / 2 + 1)};
+  const auto hs = dense_strides(half, sizeof(cfloat));
+  const auto nt = static_cast<std::size_t>(threads());
+  pocketfft::c2c(half, hs, hs, {0, 1}, false, in, in, 1.0f, nt);
+  pocketfft::c2r(shape, hs, dense_strides(shape, sizeof(float)), std::size_t{2}, false, in, out,
+                 scale, nt);
+}
+
+namespace {
+
 std::vector<cfloat> twiddles(int len, double sign) {
   std::vector<cfloat> w(len);
   for (int k = 0; k < len; ++k) {

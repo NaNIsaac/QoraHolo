@@ -66,6 +66,26 @@ QH_HD bool ewald_target(const OdtGrid& g, int ky, int kx, float fiy, float fix, 
   return true;
 }
 
+// Bin of -k on an n-point DFT grid.
+QH_HD int negative_bin(int k, int n) { return k == 0 ? 0 : n - k; }
+
+// Gerchberg-Papoulis on a real potential, k-space step on the half spectrum. The C2C loop takes
+// the real part after its inverse FFT, which keeps the Hermitian part (Y(k) + conj Y(-k)) / 2
+// of the restored spectrum Y (data where measured, the estimate E elsewhere). E is Hermitian,
+// so that part is a + b E with
+//   a = (P(k) + conj P(-k)) / 2   (P: mapped data, zero where unmeasured)
+//   b = 1 - (M(k) + M(-k)) / 2    (M: 1 where measured)
+// and the R2C loop reproduces the C2C iterates. hits = M(k) + M(-k).
+QH_HD void hermitian_data(float pre, float pim, float nre, float nim, float& are, float& aim) {
+  are = 0.5f * (pre + nre);
+  aim = 0.5f * (pim - nim);
+}
+QH_HD void hermitian_restore(float are, float aim, int hits, float& re, float& im) {
+  const float b = 1.0f - 0.5f * static_cast<float>(hits);
+  re = are + b * re;
+  im = aim + b * im;
+}
+
 // Real part of the principal sqrt(n_m^2 + O / k0^2): refractive index from scattering potential.
 QH_HD float index_from_potential(float re, float im, float nm2, float inv_k02) {
   const float a = nm2 + re * inv_k02;

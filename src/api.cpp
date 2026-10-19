@@ -130,11 +130,10 @@ OdtResult reconstruct(const Array3<cfloat>& rytov_fields,
       odt_grid(rytov_fields.nx, rytov_fields.nz, illuminations, geometry, options);
 #ifdef QORAHOLO_HAS_CUDA
   if (options.backend == Backend::cuda) {
-    return cuda::reconstruct(rytov_fields, illuminations, grid, geometry, options.gp_iterations,
-                             options.mapping);
+    return cuda::reconstruct(rytov_fields, illuminations, grid, geometry, options);
   }
 #endif
-  return cpu::reconstruct(rytov_fields, illuminations, grid, geometry, options.gp_iterations);
+  return cpu::reconstruct(rytov_fields, illuminations, grid, geometry, options);
 }
 
 std::vector<Illumination> circular_scan(int count, float na_illumination,

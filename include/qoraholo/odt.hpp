@@ -28,9 +28,16 @@ struct Illumination {
 // summation order; the choice only matters on CUDA.
 enum class Mapping { gather, scatter };
 
+// 3D transforms of the Gerchberg-Papoulis loop. r2c: the constrained potential is real, so the
+// loop runs on half spectra; the iterates equal those of c2c, but the returned volume is the
+// real part only (no absorption). c2c: full complex spectra, the imaginary part of the last
+// inverse transform enters the index as it does without iterations.
+enum class GpTransform { r2c, c2c };
+
 struct OdtOptions {
   int nz = 0;             // axial voxels; 0: field side
   int gp_iterations = 0;  // Gerchberg-Papoulis iterations with n >= n_medium
+  GpTransform gp_transform = GpTransform::r2c;
   Mapping mapping = Mapping::gather;
   Backend backend = Backend::cpu;
 };

@@ -1,6 +1,7 @@
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <cstdint>
 #include <numbers>
 #include <vector>
 
@@ -96,31 +97,105 @@ __global__ void to_index(const float2* potential, float* ri, std::size_t total, 
       detail::index_from_potential(potential[i].x * scale, potential[i].y * scale, nm2, inv_k02);
 }
 
+// Half-spectrum element o of an (nz, n, n) grid: its full index and that of its mirror -k.
+struct HalfIndex {
+  std::size_t k;
+  std::size_t minus_k;
+};
+__device__ __forceinline__ HalfIndex half_index(std::size_t o, int nz, int n) {
+  const int h = n / 2 + 1;
+  const int kx = static_cast<int>(o % h);
+  const int ky = static_cast<int>((o / h) % n);
+  const int kz = static_cast<int>(o / (std::size_t(h) * n));
+  return {(std::size_t(kz) * n + ky) * n + kx,
+          (std::size_t(detail::negative_bin(kz, nz)) * n + detail::negative_bin(ky, n)) * n +
+              detail::negative_bin(kx, n)};
+}
+
+__global__ void hermitian_hits(const float* weight, std::uint8_t* hits, int nz, int n,
+                               std::size_t half) {
+  const std::size_t o = grid_index();
+  if (o >= half) return;
+  const HalfIndex h = half_index(o, nz, n);
+  hits[o] = static_cast<std::uint8_t>((weight[h.k] > 0) + (weight[h.minus_k] > 0));
+}
+
+__global__ void hermitian_data(const float2* p, float2* a, int nz, int n, std::size_t half) {
+  const std::size_t o = grid_index();
+  if (o >= half) return;
+  const HalfIndex h = half_index(o, nz, n);
+  float2 v;
+  detail::hermitian_data(p[h.k].x, p[h.k].y, p[h.minus_k].x, p[h.minus_k].y, v.x, v.y);
+  a[o] = v;
+}
+
+// Runs over the padded rows too; R2C never reads the padding.
+__global__ void nonnegative_real(float* x, std::size_t total, float scale) {
+  const std::size_t i = grid_index();
+  if (i >= total) return;
+  x[i] = fmaxf(x[i] * scale, 0.0f);
+}
+
+__global__ void restore_half(float2* e, const float2* a, const std::uint8_t* hits,
+                             std::size_t half) {
+  const std::size_t o = grid_index();
+  if (o >= half) return;
+  float2 v = e[o];
+  detail::hermitian_restore(a[o].x, a[o].y, hits[o], v.x, v.y);
+  e[o] = v;
+}
+
+__global__ void to_index_real(float* x, std::size_t total, float scale, float nm2, float inv_k02) {
+  const std::size_t i = grid_index();
+  if (i >= total) return;
+  x[i] = detail::index_from_potential(x[i] * scale, 0.0f, nm2, inv_k02);
+}
+
 }  // namespace
 
-OdtSolver::OdtSolver(const OdtGrid& g, int count, const Geometry& geometry, int gp_iterations,
-                     Mapping mapping)
+OdtSolver::OdtSolver(const OdtGrid& g, int count, const Geometry& geometry,
+                     const OdtOptions& options)
     : g_(g),
       count_(count),
-      gp_iterations_(gp_iterations),
-      mapping_(mapping),
+      gp_iterations_(options.gp_iterations),
+      mapping_(options.mapping),
+      real_(options.gp_iterations > 0 && options.gp_transform == GpTransform::r2c),
+      half_(std::size_t(g.nz) * g.n * (g.n / 2 + 1)),
       nm2_(geometry.n_medium * geometry.n_medium),
       illum_(count),
+      // The real loop keeps its padded volume in the potential buffer and the Hermitian data in
+      // the hit-count buffer; both are free once the mapping is folded into a and hits.
       potential_(std::size_t(g.nz) * g.n * g.n),
-      weight_(potential_.size()),
-      measured_(gp_iterations > 0 ? potential_.size() : 0),
+      weight_(real_ ? std::max(potential_.size(), 2 * half_) : potential_.size()),
+      measured_(gp_iterations_ > 0 && !real_ ? potential_.size() : 0),
+      hits_(real_ ? half_ : 0),
       filled_(1),
-      plan2_(2, std::array{g.n, g.n}.data(), count, CUFFT_C2C),
-      plan3_(3, std::array{g.nz, g.n, g.n}.data(), 1, CUFFT_C2C),
-      plan_list_{&plan2_, &plan3_} {
+      plan2_(2, std::array{g.n, g.n}.data(), count, CUFFT_C2C) {
   const float k0 = 2.0f * std::numbers::pi_v<float> / geometry.wavelength;
   inv_k02_ = 1.0f / (k0 * k0);
+  const std::array dims{g.nz, g.n, g.n};
+  plan_list_.push_back(&plan2_);
+  if (real_) {
+    const int h = g.n / 2 + 1;
+    const std::array padded{g.nz, g.n, 2 * h};
+    const std::array half{g.nz, g.n, h};
+    const int real_dist = g.nz * g.n * 2 * h;
+    const int half_dist = g.nz * g.n * h;
+    r2c_.emplace(3, dims.data(), 1, CUFFT_R2C, FftPlan::Layout{padded.data(), 1, real_dist},
+                 FftPlan::Layout{half.data(), 1, half_dist});
+    c2r_.emplace(3, dims.data(), 1, CUFFT_C2R, FftPlan::Layout{half.data(), 1, half_dist},
+                 FftPlan::Layout{padded.data(), 1, real_dist});
+    plan_list_.push_back(&*r2c_);
+    plan_list_.push_back(&*c2r_);
+  } else {
+    plan3_.emplace(3, dims.data(), 1, CUFFT_C2C);
+    plan_list_.push_back(&*plan3_);
+  }
 }
 
 void OdtSolver::set_stream(cudaStream_t s) {
   stream_ = s;
-  plan2_.set_stream(s);
-  plan3_.set_stream(s);
+  for (FftPlan* p : plan_list_) p->set_stream(s);
 }
 
 void OdtSolver::set_illuminations(std::span<const Illumination> illum) {
@@ -134,7 +209,7 @@ void OdtSolver::set_illuminations(std::span<const Illumination> illum) {
 }
 
 std::size_t OdtSolver::bytes() const {
-  return illum_.bytes() + potential_.bytes() + weight_.bytes() + measured_.bytes() +
+  return illum_.bytes() + potential_.bytes() + weight_.bytes() + measured_.bytes() + hits_.bytes() +
          filled_.bytes();
 }
 
@@ -150,7 +225,7 @@ void OdtSolver::run(float2* fields, StageClock* clock, int first) {
   mark(Mark::fft2);
 
   potential_.zero(stream_);
-  weight_.zero(stream_);
+  check(cudaMemsetAsync(weight_.get(), 0, total * sizeof(float), stream_), "cudaMemset");
   if (mapping_ == Mapping::gather) {
     map_gather<<<blocks_for(plane, 128), 128, 0, stream_>>>(fields, illum_.get(), count_, g_,
                                                             potential_.get(), weight_.get());
@@ -167,20 +242,48 @@ void OdtSolver::run(float2* fields, StageClock* clock, int first) {
   mark(Mark::normalize);
 
   const float inv = 1.0f / static_cast<float>(total);
+  if (real_) {
+    const unsigned hgrid = blocks_for(half_);
+    hermitian_hits<<<hgrid, 256, 0, stream_>>>(weight_.get(), hits_.get(), g_.nz, g_.n, half_);
+    auto* a = reinterpret_cast<float2*>(weight_.get());
+    hermitian_data<<<hgrid, 256, 0, stream_>>>(potential_.get(), a, g_.nz, g_.n, half_);
+    check_launch("hermitian data");
+    float2* e = potential_.get();
+    auto* x = reinterpret_cast<float*>(e);
+    const std::size_t padded = 2 * half_;
+    check(cudaMemcpyAsync(e, a, half_ * sizeof(float2), cudaMemcpyDeviceToDevice, stream_),
+          "copy data");
+    c2r_->c2r(e, x);
+    for (int it = 0; it < gp_iterations_; ++it) {
+      nonnegative_real<<<blocks_for(padded), 256, 0, stream_>>>(x, padded, inv);
+      r2c_->r2c(x, e);
+      restore_half<<<hgrid, 256, 0, stream_>>>(e, a, hits_.get(), half_);
+      c2r_->c2r(e, x);
+    }
+    check_launch("gerchberg-papoulis");
+    mark(Mark::gp);
+    to_index_real<<<blocks_for(padded), 256, 0, stream_>>>(x, padded, inv, nm2_, inv_k02_);
+    check_launch("to_index");
+    index_ = x;
+    pitch_ = 2 * (g_.n / 2 + 1);
+    mark(Mark::finish);
+    return;
+  }
+
   if (gp_iterations_ > 0) {
     check(cudaMemcpyAsync(measured_.get(), potential_.get(), potential_.bytes(),
                           cudaMemcpyDeviceToDevice, stream_),
           "copy measured");
     for (int it = 0; it < gp_iterations_; ++it) {
-      plan3_.inverse(potential_.get());
+      plan3_->inverse(potential_.get());
       nonnegative<<<grid, 256, 0, stream_>>>(potential_.get(), total, inv);
-      plan3_.forward(potential_.get());
+      plan3_->forward(potential_.get());
       restore_measured<<<grid, 256, 0, stream_>>>(potential_.get(), measured_.get(), weight_.get(),
                                                   total);
     }
     check_launch("gerchberg-papoulis");
   }
-  plan3_.inverse(potential_.get());
+  plan3_->inverse(potential_.get());
   mark(Mark::gp);
 
   // The hit counts are no longer needed; the index goes into their buffer.
@@ -200,12 +303,17 @@ void download_rows(const float* src, std::size_t pitch, int rows, int n, float* 
 }
 
 OdtResult reconstruct(const Array3<cfloat>& rytov_fields, std::span<const Illumination> illum,
-                      const OdtGrid& g, const Geometry& geometry, int gp_iterations,
-                      Mapping mapping, OdtTimings* timings) {
+                      const OdtGrid& g, const Geometry& geometry, const OdtOptions& options,
+                      OdtTimings* timings) {
   enum { start, uploaded, downloaded = uploaded + OdtSolver::marks + 1 };
   const auto t0 = std::chrono::steady_clock::now();
-  OdtSolver solver(g, rytov_fields.nz, geometry, gp_iterations, mapping);
+  std::size_t free_before = 0;
+  std::size_t free_after = 0;
+  std::size_t device_total = 0;
+  check(cudaMemGetInfo(&free_before, &device_total), "cudaMemGetInfo");
+  OdtSolver solver(g, rytov_fields.nz, geometry, options);
   const FftWorkArea work(solver.plans());
+  check(cudaMemGetInfo(&free_after, &device_total), "cudaMemGetInfo");
   solver.set_illuminations(illum);
   const double setup =
       std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
@@ -229,6 +337,7 @@ OdtResult reconstruct(const Array3<cfloat>& rytov_fields, std::span<const Illumi
   if (timings) {
     const int s = uploaded + 1;
     timings->setup = setup;
+    timings->bytes = free_before > free_after ? free_before - free_after : 0;
     timings->upload = clock.ms(start, uploaded);
     timings->fft2 = clock.ms(uploaded, s + OdtSolver::fft2);
     timings->mapping = clock.ms(s + OdtSolver::fft2, s + OdtSolver::mapping);

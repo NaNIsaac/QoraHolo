@@ -145,34 +145,61 @@ int main(int argc, char** argv) {
   bench("Rytov phase incl. LS unwrap", [&](Backend b) { ryt = rytov(fields, b); });
 
   const auto grid = make_grid(n, n, geom);
-  OdtTimings cpu_t;
-  OdtResult cpu_result;
-  {
+  OdtOptions r2c_opt;
+  r2c_opt.gp_iterations = gp;
+  OdtOptions c2c_opt = r2c_opt;
+  c2c_opt.gp_transform = GpTransform::c2c;
+  OdtOptions scatter_opt = r2c_opt;
+  scatter_opt.mapping = Mapping::scatter;
+
+  // Median of every stage over `repeat` runs.
+  const auto profile = [&](auto&& run, OdtResult& result) {
     std::vector<OdtTimings> runs(repeat);
-    for (auto& tm : runs) cpu_result = cpu::reconstruct(ryt, illum, grid, geom, gp, &tm);
-    cpu_t = runs.back();
-  }
+    for (auto& tm : runs) result = run(&tm);
+    const auto med = [&](double OdtTimings::* f) {
+      std::vector<double> v;
+      for (const auto& t : runs) v.push_back(t.*f);
+      return median(v);
+    };
+    OdtTimings out = runs.back();
+    for (auto f :
+         {&OdtTimings::setup, &OdtTimings::upload, &OdtTimings::fft2, &OdtTimings::mapping,
+          &OdtTimings::normalize, &OdtTimings::gp, &OdtTimings::finish, &OdtTimings::download}) {
+      out.*f = med(f);
+    }
+    return out;
+  };
+  OdtResult cpu_result;
+  OdtResult cpu_c2c;
+  const OdtTimings cpu_t =
+      profile([&](OdtTimings* t) { return cpu::reconstruct(ryt, illum, grid, geom, r2c_opt, t); },
+              cpu_result);
+  const OdtTimings cpu_c2c_t = profile(
+      [&](OdtTimings* t) { return cpu::reconstruct(ryt, illum, grid, geom, c2c_opt, t); }, cpu_c2c);
   OdtTimings gather_t;
   OdtTimings scatter_t;
+  OdtTimings gpu_c2c_t;
   double odt_err = -1;
   double scatter_err = -1;
+  double c2c_err = -1;
 #ifdef QORAHOLO_HAS_CUDA
   if (gpu) {
-    (void)cuda::reconstruct(ryt, illum, grid, geom, gp, Mapping::gather);
-    std::vector<double> g_map;
-    std::vector<double> s_map;
     OdtResult g_res;
     OdtResult s_res;
-    for (int i = 0; i < repeat; ++i) {
-      g_res = cuda::reconstruct(ryt, illum, grid, geom, gp, Mapping::gather, &gather_t);
-      g_map.push_back(gather_t.mapping);
-      s_res = cuda::reconstruct(ryt, illum, grid, geom, gp, Mapping::scatter, &scatter_t);
-      s_map.push_back(scatter_t.mapping);
-    }
-    gather_t.mapping = median(g_map);
-    scatter_t.mapping = median(s_map);
+    OdtResult c_res;
+    (void)cuda::reconstruct(ryt, illum, grid, geom, r2c_opt);
+    gather_t = profile(
+        [&](OdtTimings* t) { return cuda::reconstruct(ryt, illum, grid, geom, r2c_opt, t); },
+        g_res);
+    scatter_t = profile(
+        [&](OdtTimings* t) { return cuda::reconstruct(ryt, illum, grid, geom, scatter_opt, t); },
+        s_res);
+    gpu_c2c_t = profile(
+        [&](OdtTimings* t) { return cuda::reconstruct(ryt, illum, grid, geom, c2c_opt, t); },
+        c_res);
     odt_err = contrast_error(g_res.ri, cpu_result.ri, geom.n_medium);
     scatter_err = contrast_error(s_res.ri, cpu_result.ri, geom.n_medium);
+    c2c_err = contrast_error(c_res.ri, cpu_c2c.ri, geom.n_medium);
   }
 #endif
 
@@ -181,15 +208,57 @@ int main(int argc, char** argv) {
   rows.push_back({"ODT: Ewald mapping (gather)", cpu_t.mapping, gpu_or_dash(gather_t.mapping)});
   rows.push_back({"ODT: Ewald mapping (scatter, atomics)", -1, gpu_or_dash(scatter_t.mapping)});
   rows.push_back({"ODT: normalise", cpu_t.normalize, gpu_or_dash(gather_t.normalize)});
-  rows.push_back({"ODT: GP iterations + final 3D IFFT", cpu_t.gp, gpu_or_dash(gather_t.gp)});
+  rows.push_back(
+      {"ODT: GP iterations + final 3D IFFT, R2C/C2R", cpu_t.gp, gpu_or_dash(gather_t.gp)});
+  rows.push_back(
+      {"ODT: GP iterations + final 3D IFFT, C2C", cpu_c2c_t.gp, gpu_or_dash(gpu_c2c_t.gp)});
   rows.push_back({"ODT: potential to index", cpu_t.finish, gpu_or_dash(gather_t.finish)});
   rows.push_back({"ODT: host-device copies", -1, gpu_or_dash(gather_t.upload + gather_t.download)});
   rows.push_back({"ODT: allocations and cuFFT plans (host)", -1, gpu_or_dash(gather_t.setup)});
   print_table("per-call functions", rows);
   std::printf("\nfilled k-space fraction %.4f\n", cpu_result.filled);
+  const auto gib = [](std::size_t b) { return double(b) / (1 << 30); };
+  std::printf("reconstruct memory, R2C / C2C: CPU arrays %.2f / %.2f GiB", gib(cpu_t.bytes),
+              gib(cpu_c2c_t.bytes));
   if (gpu) {
-    std::printf("relative RI-contrast difference CUDA vs CPU: gather %.2e, scatter %.2e\n", odt_err,
-                scatter_err);
+    std::printf(", CUDA device %.2f / %.2f GiB", gib(gather_t.bytes), gib(gpu_c2c_t.bytes));
+  }
+  std::printf("\nrelative RI-contrast difference R2C vs C2C (CPU): %.2e\n",
+              contrast_error(cpu_result.ri, cpu_c2c.ri, geom.n_medium));
+  {
+    const auto truth = render_phantom(cell, geom, n, n);
+    const auto score = [&](const Array3<float>& ri) {
+      double sq = 0;
+      double inner = 0;
+      int count = 0;
+      const Sphere& nuc = cell[1];
+      for (int z = 0; z < n; ++z) {
+        for (int y = 0; y < n; ++y) {
+          for (int x = 0; x < n; ++x) {
+            const double e = ri(z, y, x) - truth(z, y, x);
+            sq += e * e;
+            const double dz = (z - n / 2) * geom.pixel - nuc.z;
+            const double dy = (y - n / 2) * geom.pixel - nuc.y;
+            const double dx = (x - n / 2) * geom.pixel - nuc.x;
+            if (dz * dz + dy * dy + dx * dx < 0.36 * nuc.radius * nuc.radius) {
+              inner += ri(z, y, x);
+              ++count;
+            }
+          }
+        }
+      }
+      std::printf("RMSE %.3e, nucleus mean %.4f", std::sqrt(sq / double(ri.size())), inner / count);
+    };
+    std::printf("against the phantom (nucleus %.4f): R2C ", cell[1].n);
+    score(cpu_result.ri);
+    std::printf("; C2C ");
+    score(cpu_c2c.ri);
+    std::printf("\n");
+  }
+  if (gpu) {
+    std::printf(
+        "relative RI-contrast difference CUDA vs CPU: gather %.2e, scatter %.2e, C2C %.2e\n",
+        odt_err, scatter_err, c2c_err);
   }
 
   // End to end: holograms in, index out.
