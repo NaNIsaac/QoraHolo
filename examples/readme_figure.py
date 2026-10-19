@@ -51,7 +51,7 @@ t0 = time.perf_counter()
 fields = qh.field_ratio(qh.extract_fields(holo, **opts), qh.extract_fields(bg, **opts))
 rytov = qh.rytov(fields, backend=args.backend)
 plain = qh.reconstruct(rytov, estimated, geom, backend=args.backend)
-gp = qh.reconstruct(rytov, estimated, geom, gp_iterations=20, backend=args.backend)
+gp = qh.reconstruct(rytov, estimated, geom, iterations=20, backend=args.backend)
 elapsed = time.perf_counter() - t0
 
 truth = qh.render_phantom(cell, geom, N, N)

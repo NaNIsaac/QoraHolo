@@ -53,6 +53,12 @@ Backend parse_backend(const std::string& s) {
   throw std::invalid_argument("backend must be 'cpu' or 'cuda'");
 }
 
+Solver parse_solver(const std::string& s) {
+  if (s == "gp") return Solver::gerchberg_papoulis;
+  if (s == "tv") return Solver::tv;
+  throw std::invalid_argument("solver must be 'gp' or 'tv'");
+}
+
 GpTransform parse_transform(const std::string& s) {
   if (s == "r2c") return GpTransform::r2c;
   if (s == "c2c") return GpTransform::c2c;
@@ -173,14 +179,18 @@ NB_MODULE(_core, m) {
       "reconstruct",
       [](In3<cfloat> fields,
          nb::ndarray<const float, nb::ndim<2>, nb::c_contig, nb::device::cpu> illuminations,
-         const Geometry& geometry, int nz, int gp_iterations, const std::string& gp_transform,
-         const std::string& mapping, const std::string& backend) {
+         const Geometry& geometry, int nz, int iterations, const std::string& solver,
+         const std::string& gp_transform, float tv_weight, int tv_inner, const std::string& mapping,
+         const std::string& backend) {
         auto f = to_array(fields);
         const auto il = to_illum(illuminations);
         OdtOptions opt;
         opt.nz = nz;
-        opt.gp_iterations = gp_iterations;
+        opt.iterations = iterations;
+        opt.solver = parse_solver(solver);
         opt.gp_transform = parse_transform(gp_transform);
+        opt.tv_weight = tv_weight;
+        opt.tv_inner = tv_inner;
         opt.mapping = parse_mapping(mapping);
         opt.backend = parse_backend(backend);
         OdtResult r;
@@ -191,8 +201,9 @@ NB_MODULE(_core, m) {
         return nb::make_tuple(to_numpy(std::move(r.ri)), r.filled);
       },
       nb::arg("fields"), nb::arg("illuminations"), nb::arg("geometry"), nb::arg("nz") = 0,
-      nb::arg("gp_iterations") = 0, nb::arg("gp_transform") = "r2c", nb::arg("mapping") = "gather",
-      nb::arg("backend") = "cpu");
+      nb::arg("iterations") = 0, nb::arg("solver") = "gp", nb::arg("gp_transform") = "r2c",
+      nb::arg("tv_weight") = OdtOptions{}.tv_weight, nb::arg("tv_inner") = OdtOptions{}.tv_inner,
+      nb::arg("mapping") = "gather", nb::arg("backend") = "cpu");
 
   nb::class_<Pipeline>(m, "Pipeline")
       .def(
@@ -200,7 +211,8 @@ NB_MODULE(_core, m) {
           [](Pipeline* p, int count, int hologram_size, std::array<float, 2> center, float radius,
              int output_size,
              nb::ndarray<const float, nb::ndim<2>, nb::c_contig, nb::device::cpu> illuminations,
-             const Geometry& geometry, int nz, int gp_iterations, const std::string& gp_transform,
+             const Geometry& geometry, int nz, int iterations, const std::string& solver,
+             const std::string& gp_transform, float tv_weight, int tv_inner,
              const std::string& mapping, const std::string& backend, int upload_chunks) {
             PipelineOptions o;
             o.count = count;
@@ -211,8 +223,11 @@ NB_MODULE(_core, m) {
             o.illuminations = to_illum(illuminations);
             o.geometry = geometry;
             o.odt.nz = nz;
-            o.odt.gp_iterations = gp_iterations;
+            o.odt.iterations = iterations;
+            o.odt.solver = parse_solver(solver);
             o.odt.gp_transform = parse_transform(gp_transform);
+            o.odt.tv_weight = tv_weight;
+            o.odt.tv_inner = tv_inner;
             o.odt.mapping = parse_mapping(mapping);
             o.odt.backend = parse_backend(backend);
             o.upload_chunks = upload_chunks;
@@ -220,8 +235,8 @@ NB_MODULE(_core, m) {
           },
           nb::arg("count"), nb::arg("hologram_size"), nb::arg("center"), nb::arg("radius"),
           nb::arg("output_size"), nb::arg("illuminations"), nb::arg("geometry"), nb::arg("nz"),
-          nb::arg("gp_iterations"), nb::arg("gp_transform"), nb::arg("mapping"), nb::arg("backend"),
-          nb::arg("upload_chunks"))
+          nb::arg("iterations"), nb::arg("solver"), nb::arg("gp_transform"), nb::arg("tv_weight"),
+          nb::arg("tv_inner"), nb::arg("mapping"), nb::arg("backend"), nb::arg("upload_chunks"))
       .def(
           "set_background",
           [](Pipeline& p, In3<float> backgrounds) {

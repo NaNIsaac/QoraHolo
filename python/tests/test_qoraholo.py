@@ -38,7 +38,7 @@ def test_reconstruct_sphere():
     illum = qh.circular_scan(49, 0.9, GEOM)
     assert illum.shape == (49, 2)
     fields = qh.rytov(qh.forward_fields(SPHERE, illum, GEOM, 64))
-    ri, filled = qh.reconstruct(fields, illum, GEOM, gp_iterations=10, return_filled=True)
+    ri, filled = qh.reconstruct(fields, illum, GEOM, iterations=10, return_filled=True)
     assert ri.shape == (64, 64, 64)
     assert 0 < filled < 1
     z, y, x = np.indices(ri.shape) - 32
@@ -55,8 +55,8 @@ def test_rejects_odd_sizes():
 def test_cuda_matches_cpu():
     illum = qh.circular_scan(9, 0.9, GEOM)
     fields = qh.rytov(qh.forward_fields(SPHERE, illum, GEOM, 64))
-    a = qh.reconstruct(fields, illum, GEOM, gp_iterations=3) - GEOM.n_medium
-    b = qh.reconstruct(fields, illum, GEOM, gp_iterations=3, backend="cuda") - GEOM.n_medium
+    a = qh.reconstruct(fields, illum, GEOM, iterations=3) - GEOM.n_medium
+    b = qh.reconstruct(fields, illum, GEOM, iterations=3, backend="cuda") - GEOM.n_medium
     assert np.linalg.norm(a - b) / np.linalg.norm(a) < 1e-4
 
 
@@ -72,10 +72,10 @@ def test_pipeline_matches_functions(backend):
     bg = qh.synthesize_holograms(np.ones_like(ratio), illum, holo_geom, carrier=(carrier, carrier))
     crop = dict(center=(36, 36), radius=30, output_size=64)
     fields = qh.field_ratio(qh.extract_fields(holo, **crop), qh.extract_fields(bg, **crop))
-    ref = qh.reconstruct(qh.rytov(fields), illum, GEOM, gp_iterations=3)
+    ref = qh.reconstruct(qh.rytov(fields), illum, GEOM, iterations=3)
 
     p = qh.Pipeline(
-        9, 128, illuminations=illum, geometry=GEOM, gp_iterations=3, backend=backend, **crop
+        9, 128, illuminations=illum, geometry=GEOM, iterations=3, backend=backend, **crop
     )
     p.set_background(bg)
     ri = p.run(holo)
