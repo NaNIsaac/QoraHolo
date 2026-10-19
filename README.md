@@ -28,8 +28,8 @@ the nucleus: 1.3683 from Rytov ODT, 1.3757 after 20 Gerchberg-Papoulis iteration
 phantom over the whole volume: 2.37e-3, 9.25e-4 and 7.69e-4. The x-z slices show the
 missing-cone elongation along z, how much of it the non-negativity constraint removes, and
 that TV removes most of the rest and the ringing, with overshoot at the top and bottom of the
-nucleus. Field extraction to GP took 0.26 s on CUDA and 1.80 s on CPU through the per-call
-functions; the TV reconstruction took 0.52 s and 10.3 s. The TV weight (1e-2, the default)
+nucleus. Field extraction to GP took 0.23 s on CUDA and 1.80 s on CPU through the per-call
+functions; the TV reconstruction took 0.42 s and 10.3 s. The TV weight (1e-2, the default)
 was picked from a sweep on this phantom, so the TV numbers are tuned to it. Script:
 `examples/readme_figure.py`.
 
@@ -185,142 +185,123 @@ background.
 ## Benchmark
 
 ```
-qoraholo_bench --field 256 --repeat 5     # 512² holograms, 49 angles, 256³, 10 GP iterations
-qoraholo_bench --field 512 --repeat 3 --cpu 0   # 1024² holograms, 49 angles, 512³, CUDA only
+qoraholo_bench --field 256 --repeat 5            # 512² holograms, 49 angles, 256³, 10 GP iterations
+qoraholo_bench --field 512 --repeat 3 --cpu 0    # 1024² holograms, 512³, CUDA only
+qoraholo_bench --field 256 --tv 1                # only the TV kernel comparison
 ```
 
 Measured on an AMD Ryzen 5 7500F (6 cores) and an NVIDIA GeForce RTX 5070 (12 GB), Windows 11,
-MSVC 19.44, CUDA 13.4, driver 610.88, one build with both backends. Milliseconds, medians of 5
-runs at 256³. No other process was computing on the GPU at the start or the end of the run
-(checked with `nvidia-smi`). No profiler numbers: Nsight Compute needs GPU performance
-counter access, which is not enabled on this machine (`ERR_NVGPUCTRPERM`), so all times are
-cudaEvent intervals or host wall time.
+MSVC 19.44, CUDA 13.4, driver 610.88, one build with both backends. Milliseconds; medians of 5
+runs at 256³ and 3 at 512³. Both runs held an exclusive lock on the GPU (the machine is
+shared with another project's benchmarks), and `nvidia-smi`, sampled every 5 s, showed no
+other compute process. 512³ is CUDA only: the CPU solver runs at that size need several GiB
+of host memory. No profiler numbers: Nsight Compute needs GPU performance counter access,
+which is not enabled on this machine (`ERR_NVGPUCTRPERM`), so all times are cudaEvent
+intervals or host wall time.
 
-**End to end at 256³**, sample holograms in, index out, 10 Gerchberg-Papoulis iterations:
+**End to end**, sample holograms in, index out, 10 Gerchberg-Papoulis iterations:
 
-| | CPU | CUDA |
-|---|---:|---:|
-| per-call functions, host in / host out (plans created per call) | 993 | 82 |
-| `Pipeline::run()`, copies into and out of its buffers | 964 | 41 |
-| `Pipeline::process()`, page-locked input and output | 998 | 28 |
-| `Pipeline` constructor (allocations, cuFFT plans), once | 3.75 | 53 |
-| `Pipeline::set_background`, once | 59 | 8.07 |
+| | 256³ CPU | 256³ CUDA | 512³ CUDA |
+|---|---:|---:|---:|
+| per-call functions, host in / host out (plans created per call) | 1071 | 82 | 440 |
+| `Pipeline::run()`, copies into and out of its buffers | 1022 | 40 | 329 |
+| `Pipeline::process()`, page-locked input and output | 974 | 28 | 221 |
+| `Pipeline` constructor (allocations, cuFFT plans), once | 3.78 | 20 | 68 |
+| `Pipeline::set_background`, once | 61 | 5.22 | 41 |
+| `Pipeline` device memory | - | 0.42 GiB | 2.39 GiB |
 
 `process()` on CUDA, by stage (cudaEvent):
 
-| stage | ms |
-|---|---:|
-| upload of the 49 sample holograms (49 MiB, page-locked) | 1.78 |
-| field extraction, from the start of the upload | 2.22 |
-| ratio, least-squares unwrap, Rytov | 2.11 |
-| 2D FFT | 0.05 |
-| zero the volume and hit counts | 0.30 |
-| Ewald mapping | 0.09 |
-| normalise | 0.16 |
-| 10 GP iterations (R2C/C2R) + final inverse | 20 |
-| potential to index | 0.24 |
-| download of the volume (64 MiB, page-locked) | 2.41 |
+| stage | 256³ | 512³ |
+|---|---:|---:|
+| upload of the 49 sample holograms (49 / 196 MiB, page-locked) | 1.78 | 7.13 |
+| field extraction, from the start of the upload | 2.27 | 9.58 |
+| ratio, least-squares unwrap, Rytov | 2.13 | 8.15 |
+| 2D FFT | 0.05 | 0.69 |
+| zero the volume and hit counts | 0.30 | 2.54 |
+| Ewald mapping | 0.10 | 0.65 |
+| normalise | 0.16 | 1.20 |
+| 10 GP iterations (R2C/C2R) + final inverse | 20 | 177 |
+| potential to index | 0.24 | 1.87 |
+| download of the volume (64 / 512 MiB, page-locked) | 2.42 | 19 |
 
-The Pipeline holds 0.42 GiB of device memory at 256³ (`cudaMemGetInfo` before and after
-construction). Against the per-call chain it saves the cuFFT plan creation (about 5 ms for
-the reconstruction alone), the pageable copies between stages, the second field extraction
-for the background, and the host-side `field_ratio`. What is left is dominated by the GP
-loop.
+Against the per-call chain the Pipeline saves the cuFFT plan creation, the pageable copies
+between stages, the second field extraction for the background, and the host-side
+`field_ratio`. What is left is dominated by the GP loop.
 
 Copies on their own, same sizes:
 
 | transfer | pageable | page-locked |
 |---|---:|---:|
-| sample holograms to device, 49 MiB | 2.94 | 1.83 |
-| index volume to host, 64 MiB | 8.73 | 2.37 |
+| sample holograms to device, 49 MiB | 2.64 | 1.82 |
+| index volume to host, 64 MiB | 3.86 | 2.37 |
+| sample holograms to device, 196 MiB | 11.35 | 7.16 |
+| index volume to host, 512 MiB | 29.78 | 18.83 |
 
-Splitting the upload so that field extraction overlaps it (`upload_chunks`) barely matters
-here: upload plus field extraction took 2.21 ms with one copy, 1.97 ms with 7 parts and
-2.72 ms with 49 parts; `process()` 27.3, 27.3 and 27.7 ms. The copy is short and the R2C
-and crop are shorter, so there is little to hide, and with 49 parts the per-copy overhead
-wins. Page-locked buffers are the part that helps.
+Splitting the upload so that field extraction overlaps it (`upload_chunks`) barely matters.
+Upload plus field extraction with 1, 7 and 49 parts: 2.21, 1.93 and 2.66 ms at 256³, 9.58,
+8.08 and 8.00 ms at 512³; `process()` 27.5, 27.4, 28.1 and 220.1, 218.0, 218.2 ms. The copy
+is short and the R2C and crop are shorter, so there is little to hide, and with many small
+parts the per-copy overhead wins at 256³. The page-locked buffers are the part that helps.
 
-**Gerchberg-Papoulis on half spectra**, 256³, 10 iterations, same input:
+**Gerchberg-Papoulis on half spectra**, 10 iterations, same input:
 
-| | CPU | CUDA |
-|---|---:|---:|
-| C2C | 1239 ms | 36 ms |
-| R2C/C2R | 692 ms | 20 ms |
-| memory, C2C | 0.31 GiB | 0.32 GiB |
-| memory, R2C/C2R | 0.26 GiB | 0.20 GiB |
+| | 256³ CPU | 256³ CUDA | 512³ CUDA |
+|---|---:|---:|---:|
+| C2C | 1260 ms | 36 ms | 296 ms |
+| R2C/C2R | 742 ms | 20 ms | 176 ms |
+| memory, C2C | 0.31 GiB | 0.32 GiB | 2.50 GiB |
+| memory, R2C/C2R | 0.26 GiB | 0.20 GiB | 1.57 GiB |
 
-CUDA memory is measured for the whole reconstruction including the cuFFT work area; CPU
-memory is the peak of the arrays the solver allocates. The R2C index differs from the C2C
-index by 5.3e-6 of the contrast, and RMSE against the phantom (1.002e-3) and nucleus mean
-(1.3742) are the same to the printed digits.
+CUDA memory is measured with `cudaMemGetInfo` for the whole reconstruction including the
+cuFFT work area; CPU memory is the peak of the arrays the solver allocates. The R2C index
+differs from the C2C index by 5.3e-6 of the contrast at both sizes, and RMSE against the
+phantom and nucleus mean are the same to the printed digits (1.002e-3 and 1.3742 at 256³,
+9.58e-4 and 1.3745 at 512³).
 
-**Missing-cone solvers**, 256³, the per-call `reconstruct` on the same Rytov fields
-(CPU: one run, CUDA: median of 5), TV weight 1e-2:
+**Missing-cone solvers**, the per-call `reconstruct` on the same Rytov fields (CPU: one run),
+TV weight 1e-2:
 
-| solver | CPU (ms) | CUDA (ms) | RMSE | nucleus mean (true 1.3750) |
-|---|---:|---:|---:|---:|
-| Rytov ODT, no iterations | 128 | 17 | 2.37e-3 | 1.3683 |
-| GP, 20 iterations | 1264 | 54 | 9.21e-4 | 1.3757 |
-| GP, 100 iterations | 6227 | 203 | 9.72e-4 | 1.3772 |
-| FISTA-TV, 20 outer x 10 dual iterations | 10088 | 514 | 7.69e-4 | 1.3762 |
+| solver | 256³ CPU | 256³ CUDA | RMSE | nucleus (1.3750) | 512³ CUDA | RMSE | nucleus |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Rytov ODT, no iterations | 130 | 20 | 2.37e-3 | 1.3683 | 137 | 2.35e-3 | 1.3685 |
+| GP, 20 iterations | 1360 | 54 | 9.21e-4 | 1.3757 | 447 | 8.72e-4 | 1.3761 |
+| GP, 100 iterations | 6560 | 205 | 9.72e-4 | 1.3772 | 1754 | 8.93e-4 | 1.3773 |
+| FISTA-TV, 20 outer x 10 dual iterations | 10092 | 418 | 7.69e-4 | 1.3762 | 3265 | 8.07e-4 | 1.3780 |
 
-These CUDA times include the upload and plan creation of the per-call function. More GP
-iterations do not help this phantom; TV lowers the RMSE by 17% at 8 to 10 times the cost
-of 20 GP iterations. The TV result depends on the weight and on the number of dual steps:
-in a sweep on the README phantom (CUDA, 20 outer iterations) weights 3e-4, 1e-3, 3e-3 and
-1e-2 gave RMSE 8.89e-4, 8.48e-4, 8.05e-4 and 7.69e-4, and at 1e-2 with 50 outer iterations
-the RMSE rose to 1.08e-3; 5 dual steps instead of 10 gave 9.38e-4, 20 gave 7.99e-4.
+These CUDA times include the upload, the download and plan creation of the per-call
+function. More GP iterations do not help this phantom. TV lowers the RMSE by 17% at 256³
+and 7.5% at 512³, at 7 to 8 times the cost of 20 GP iterations on CUDA. The TV result depends
+on the weight and on the number of dual steps: in a sweep on the README phantom (CUDA, 20
+outer iterations) weights 3e-4, 1e-3, 3e-3 and 1e-2 gave RMSE 8.89e-4, 8.48e-4, 8.05e-4 and
+7.69e-4, and at 1e-2 with 50 outer iterations the RMSE rose to 1.08e-3; 5 dual steps instead
+of 10 gave 9.38e-4, 20 gave 7.99e-4.
+
+The FGP step of the TV solver is one fused kernel; against the earlier two-kernel version it
+takes 1.62 instead of 2.13 ms at 256³ and 12.6 instead of 16.8 ms at 512³, with the same
+result bit for bit. Shared-memory tiling was tried and did not help. Details and the
+measurements are in [docs/tv_kernels.md](docs/tv_kernels.md).
 
 Per-call functions at 256³, by stage:
 
 | stage | CPU | CUDA |
 |---|---:|---:|
-| field extraction, 49 sample + 49 background holograms | 136 | 37 |
-| Rytov phase incl. least-squares unwrap, 49 fields | 116 | 13 |
-| ODT: 2D FFT of the Rytov fields | 9.11 | 0.08 |
+| field extraction, 49 sample + 49 background holograms | 135 | 38 |
+| Rytov phase incl. least-squares unwrap, 49 fields | 117 | 12 |
+| ODT: 2D FFT of the Rytov fields | 8.46 | 0.12 |
 | ODT: zero the volume and hit counts | - | 0.30 |
-| ODT: Ewald mapping, gather (column owner, no atomics) | 28 | 0.09 |
+| ODT: Ewald mapping, gather (column owner, no atomics) | 29 | 0.09 |
 | ODT: Ewald mapping, scatter (atomicAdd) | - | 0.10 |
-| ODT: normalise | 2.91 | 0.16 |
-| ODT: 10 GP iterations + final 3D IFFT, R2C/C2R | 692 | 20 |
-| ODT: potential to refractive index | 13 | 0.24 |
-| ODT: host-device copies | - | 5.86 |
-| ODT: allocations and cuFFT plans (host) | - | 4.53 |
+| ODT: normalise | 2.99 | 0.16 |
+| ODT: 10 GP iterations + final 3D IFFT, R2C/C2R | 742 | 20 |
+| ODT: potential to refractive index | 10 | 0.23 |
+| ODT: host-device copies | - | 6.10 |
+| ODT: allocations and cuFFT plans (host) | - | 5.21 |
 
 CUDA field and Rytov times in this table are wall-clock and include copies and plan creation.
 Relative difference of the index contrast between CUDA and CPU: 3.8e-6 (gather and scatter),
-3.9e-6 through the Pipeline.
-
-**512³** (1024² holograms), `qoraholo_bench --field 512 --repeat 3 --cpu 0`: CUDA only,
-because the CPU solver runs at this size need several GiB of host memory and the machine is
-shared. The run held the GPU benchmark lock, and `nvidia-smi`, sampled every 5 s, showed no
-other compute process. Medians of 3 runs, milliseconds.
-
-| | CUDA |
-|---|---:|
-| per-call functions, host in / host out, 10 GP iterations | 442 |
-| `Pipeline::process()`, 10 GP iterations | 222 |
-| of which 10 GP iterations + final inverse, R2C/C2R | 178 |
-| upload of the holograms (196 MiB) / download of the volume (512 MiB), page-locked | 7.2 / 19 |
-| `Pipeline` constructor, once | 68 |
-| 10 GP iterations through `reconstruct`: R2C/C2R / C2C | 178 / 300 |
-| reconstruction device memory: R2C/C2R / C2C | 1.57 / 2.50 GiB |
-| `Pipeline` device memory | 2.39 GiB |
-| Ewald mapping, gather / scatter (kernel only) | 0.66 / 0.86 |
-
-| solver, per-call `reconstruct` | CUDA (ms) | RMSE | nucleus mean (true 1.3750) |
-|---|---:|---:|---:|
-| Rytov ODT, no iterations | 185 | 2.35e-3 | 1.3685 |
-| GP, 20 iterations | 447 | 8.72e-4 | 1.3761 |
-| GP, 100 iterations | 1765 | 8.93e-4 | 1.3773 |
-| FISTA-TV, 20 x 10 iterations | 4120 | 8.07e-4 | 1.3780 |
-
-The per-call times include the 0.5 GiB download and the plan creation. R2C and C2C differ
-by 5.3e-6 of the index contrast here as well. Without the CPU run there is no CUDA-versus-CPU
-check at this size; the previous phase measured 3.6e-5. Page-locked against pageable: 7.2
-against 11.8 ms for the holograms, 18.8 against 32.6 ms for the volume. The chunked upload
-saves 1.6 ms of 9.6 ms in upload plus field extraction and nothing measurable in
-`process()` (220.2, 219.4 and 220.0 ms for 1, 7 and 49 parts).
+3.9e-6 through the Pipeline. At 512³ there is no CPU run; scatter and gather differ by
+2.8e-6, and the Pipeline and the per-call function by 3.2e-6.
 
 ## Layout
 

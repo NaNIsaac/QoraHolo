@@ -149,10 +149,14 @@ Gerchberg-Papoulis with Nesterov momentum. Lim et al. (2015) compare this kind o
 TV-regularised reconstruction with Gerchberg-Papoulis and edge-preserving regularisation for
 ODT.
 
-Each FGP iteration is two stencil kernels: the primal point max(v − λ L(r), 0) and the dual
-update (gradient of the primal point, projection onto the unit ball, momentum). The CPU runs
-the same arithmetic from `common.hpp` (`tv_adjoint`, `tv_primal`, `tv_gradient`,
-`tv_dual_step`). TV holds three more volumes than GP for each of p and r, plus z and x_prev.
+On the GPU each FGP iteration is one kernel: every thread recomputes the primal point
+max(v − λ L(r), 0) at its voxel and at the three upper neighbours it needs for the gradient,
+then does the dual update (projection onto the unit ball, momentum). r is read from one
+buffer and written to another, since neighbouring threads still need the old values. That
+replaced a primal and a dual kernel with z written in between; the fused step is 24-25%
+faster and gives the same result bit for bit. Shared-memory tiled versions were slower or
+equal; [tv_kernels.md](tv_kernels.md) has the measurements. The CPU runs the same arithmetic
+from `common.hpp` (`tv_adjoint`, `tv_primal`, `tv_gradient`, `tv_dual_step`) in place.
 
 ## Memory
 
@@ -160,10 +164,10 @@ For an n³ volume the C2C reconstruction holds the complex potential (8 n³ byte
 counts (4 n³) and the measured spectrum while GP runs (8 n³); the index is written into the
 hit-count buffer. The R2C loop needs the potential (8 n³, later the padded real volume and
 its half spectrum), the hit counts (4 n³, later a) and one byte per half-spectrum voxel:
-about 12.5 n³. cuFFT's work area comes on top. Measured with `cudaMemGetInfo` for the whole reconstruction
-at 256³: 0.32 GiB C2C, 0.20 GiB R2C. FISTA-TV adds eight padded real volumes (the dual p and
-its momentum copy r, three components each, the primal point and the previous iterate),
-about 32 n³ bytes. The `Pipeline` adds the hologram stack, two field stacks and the unwrap
+about 12.5 n³. cuFFT's work area comes on top. Measured with `cudaMemGetInfo` for the whole
+reconstruction at 256³: 0.32 GiB C2C, 0.20 GiB R2C. FISTA-TV on the GPU adds eleven padded real volumes
+(the dual p, its momentum copy r and the next r, three components each, the primal point and
+the previous iterate), about 44 n³ bytes; the CPU version needs nine. The `Pipeline` adds the hologram stack, two field stacks and the unwrap
 buffers; at 256³ it holds 0.42 GiB in total with GP.
 
 ## Validation
