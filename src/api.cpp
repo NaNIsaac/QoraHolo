@@ -29,6 +29,18 @@ void require_even_square(int ny, int nx, const char* who) {
 
 }  // namespace
 
+detail::OdtGrid make_grid(int n, int nz, const Geometry& geometry) {
+  const float fm = geometry.n_medium / geometry.wavelength;
+  const float fna = geometry.na / geometry.wavelength;
+  return {n,
+          nz,
+          1.0f / (static_cast<float>(n) * geometry.pixel),
+          1.0f / (static_cast<float>(nz) * geometry.pixel),
+          fm * fm,
+          fna * fna,
+          4.0f * std::numbers::pi_v<float> / geometry.pixel};
+}
+
 bool cuda_available() {
 #ifdef QORAHOLO_HAS_CUDA
   return cuda::device_present();
@@ -106,15 +118,7 @@ OdtResult reconstruct(const Array3<cfloat>& rytov_fields,
             "reconstruct: illumination frequency beyond n_medium / wavelength");
   }
 
-  const detail::OdtGrid grid{
-      n,
-      nz,
-      1.0f / (static_cast<float>(n) * geometry.pixel),
-      1.0f / (static_cast<float>(nz) * geometry.pixel),
-      fm * fm,
-      (geometry.na / geometry.wavelength) * (geometry.na / geometry.wavelength),
-      4.0f * std::numbers::pi_v<float> / geometry.pixel,
-  };
+  const detail::OdtGrid grid = make_grid(n, nz, geometry);
   if (options.backend == Backend::cuda) {
     require_cuda();
 #ifdef QORAHOLO_HAS_CUDA

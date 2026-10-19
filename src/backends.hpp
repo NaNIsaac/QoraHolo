@@ -30,6 +30,9 @@ struct OdtTimings {
   double download = 0;
 };
 
+// k-space grid constants for fields of side n reconstructed into nz axial voxels.
+detail::OdtGrid make_grid(int n, int nz, const Geometry& geometry);
+
 namespace cpu {
 Array3<cfloat> extract_fields(const Array3<float>& holograms, const CropPlan& plan);
 Array3<float> unwrap(const Array3<float>& wrapped);
