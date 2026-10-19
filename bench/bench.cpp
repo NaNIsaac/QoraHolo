@@ -1,11 +1,13 @@
 // Per-stage timing of the reconstruction pipeline on CPU and CUDA.
 //
-//   qoraholo_bench [--field N] [--angles A] [--gp G] [--repeat R]
+//   qoraholo_bench [--field N] [--angles A] [--gp G] [--repeat R] [--cpu 0|1]
 //
 // Holograms are 2N x 2N, fields N x N, the volume N^3. In the per-call table, CUDA field/Rytov
 // times are wall times including host-device copies and plan creation; ODT sub-stages on CUDA
 // are cudaEvent times without copies. The end-to-end table compares the per-call chain with the
-// Pipeline, whose CUDA stage times are cudaEvent intervals.
+// Pipeline, whose CUDA stage times are cudaEvent intervals. --cpu 0 skips the CPU backend
+// (its 512^3 solver runs need several GiB of host memory); CUDA results are then compared with
+// each other and with the phantom only.
 
 #include <algorithm>
 #include <chrono>
@@ -79,12 +81,14 @@ int main(int argc, char** argv) {
   int angles = 49;
   int gp = 10;
   int repeat = 3;
+  int use_cpu = 1;
   for (int i = 1; i + 1 < argc; i += 2) {
     const int v = std::atoi(argv[i + 1]);
     if (!std::strcmp(argv[i], "--field")) n = v;
     if (!std::strcmp(argv[i], "--angles")) angles = v;
     if (!std::strcmp(argv[i], "--gp")) gp = v;
     if (!std::strcmp(argv[i], "--repeat")) repeat = v;
+    if (!std::strcmp(argv[i], "--cpu")) use_cpu = v;
   }
   const int holo_n = 2 * n;
   const bool gpu = cuda_available();
@@ -127,8 +131,11 @@ int main(int argc, char** argv) {
   auto bench = [&](const char* name, const std::function<void(Backend)>& f) {
     Row r{name};
     std::vector<double> t;
-    for (int i = 0; i < repeat; ++i) t.push_back(time_ms([&] { f(Backend::cpu); }));
-    r.cpu = median(t);
+    r.cpu = -1;
+    if (use_cpu) {
+      for (int i = 0; i < repeat; ++i) t.push_back(time_ms([&] { f(Backend::cpu); }));
+      r.cpu = median(t);
+    }
     if (gpu) {
       f(Backend::cuda);  // context, plans
       t.clear();
@@ -172,22 +179,27 @@ int main(int argc, char** argv) {
   };
   OdtResult cpu_result;
   OdtResult cpu_c2c;
-  const OdtTimings cpu_t =
-      profile([&](OdtTimings* t) { return cpu::reconstruct(ryt, illum, grid, geom, r2c_opt, t); },
-              cpu_result);
-  const OdtTimings cpu_c2c_t = profile(
-      [&](OdtTimings* t) { return cpu::reconstruct(ryt, illum, grid, geom, c2c_opt, t); }, cpu_c2c);
+  OdtTimings cpu_t;
+  OdtTimings cpu_c2c_t;
+  if (use_cpu) {
+    cpu_t =
+        profile([&](OdtTimings* t) { return cpu::reconstruct(ryt, illum, grid, geom, r2c_opt, t); },
+                cpu_result);
+    cpu_c2c_t =
+        profile([&](OdtTimings* t) { return cpu::reconstruct(ryt, illum, grid, geom, c2c_opt, t); },
+                cpu_c2c);
+  }
   OdtTimings gather_t;
   OdtTimings scatter_t;
   OdtTimings gpu_c2c_t;
   double odt_err = -1;
   double scatter_err = -1;
   double c2c_err = -1;
+  OdtResult g_res;
+  OdtResult c_res;
 #ifdef QORAHOLO_HAS_CUDA
   if (gpu) {
-    OdtResult g_res;
     OdtResult s_res;
-    OdtResult c_res;
     (void)cuda::reconstruct(ryt, illum, grid, geom, r2c_opt);
     gather_t = profile(
         [&](OdtTimings* t) { return cuda::reconstruct(ryt, illum, grid, geom, r2c_opt, t); },
@@ -198,35 +210,46 @@ int main(int argc, char** argv) {
     gpu_c2c_t = profile(
         [&](OdtTimings* t) { return cuda::reconstruct(ryt, illum, grid, geom, c2c_opt, t); },
         c_res);
-    odt_err = contrast_error(g_res.ri, cpu_result.ri, geom.n_medium);
-    scatter_err = contrast_error(s_res.ri, cpu_result.ri, geom.n_medium);
-    c2c_err = contrast_error(c_res.ri, cpu_c2c.ri, geom.n_medium);
+    if (use_cpu) {
+      odt_err = contrast_error(g_res.ri, cpu_result.ri, geom.n_medium);
+      scatter_err = contrast_error(s_res.ri, cpu_result.ri, geom.n_medium);
+      c2c_err = contrast_error(c_res.ri, cpu_c2c.ri, geom.n_medium);
+    } else {
+      scatter_err = contrast_error(s_res.ri, g_res.ri, geom.n_medium);
+    }
   }
 #endif
+  // Reference results: CPU when it ran, otherwise CUDA.
+  const OdtResult& ref = use_cpu ? cpu_result : g_res;
+  const OdtResult& ref_c2c = use_cpu ? cpu_c2c : c_res;
+  const auto cpu_or_dash = [&](double v) { return use_cpu ? v : -1.0; };
 
   auto gpu_or_dash = [&](double v) { return gpu ? v : -1.0; };
-  rows.push_back({"ODT: 2D FFT of Rytov fields", cpu_t.fft2, gpu_or_dash(gather_t.fft2)});
+  rows.push_back(
+      {"ODT: 2D FFT of Rytov fields", cpu_or_dash(cpu_t.fft2), gpu_or_dash(gather_t.fft2)});
   rows.push_back({"ODT: zero the volume", -1, gpu_or_dash(gather_t.clear)});
-  rows.push_back({"ODT: Ewald mapping (gather)", cpu_t.mapping, gpu_or_dash(gather_t.mapping)});
+  rows.push_back(
+      {"ODT: Ewald mapping (gather)", cpu_or_dash(cpu_t.mapping), gpu_or_dash(gather_t.mapping)});
   rows.push_back({"ODT: Ewald mapping (scatter, atomics)", -1, gpu_or_dash(scatter_t.mapping)});
-  rows.push_back({"ODT: normalise", cpu_t.normalize, gpu_or_dash(gather_t.normalize)});
+  rows.push_back({"ODT: normalise", cpu_or_dash(cpu_t.normalize), gpu_or_dash(gather_t.normalize)});
+  rows.push_back({"ODT: GP iterations + final 3D IFFT, R2C/C2R", cpu_or_dash(cpu_t.solve),
+                  gpu_or_dash(gather_t.solve)});
+  rows.push_back({"ODT: GP iterations + final 3D IFFT, C2C", cpu_or_dash(cpu_c2c_t.solve),
+                  gpu_or_dash(gpu_c2c_t.solve)});
   rows.push_back(
-      {"ODT: GP iterations + final 3D IFFT, R2C/C2R", cpu_t.solve, gpu_or_dash(gather_t.solve)});
-  rows.push_back(
-      {"ODT: GP iterations + final 3D IFFT, C2C", cpu_c2c_t.solve, gpu_or_dash(gpu_c2c_t.solve)});
-  rows.push_back({"ODT: potential to index", cpu_t.finish, gpu_or_dash(gather_t.finish)});
+      {"ODT: potential to index", cpu_or_dash(cpu_t.finish), gpu_or_dash(gather_t.finish)});
   rows.push_back({"ODT: host-device copies", -1, gpu_or_dash(gather_t.upload + gather_t.download)});
   rows.push_back({"ODT: allocations and cuFFT plans (host)", -1, gpu_or_dash(gather_t.setup)});
   print_table("per-call functions", rows);
-  std::printf("\nfilled k-space fraction %.4f\n", cpu_result.filled);
+  std::printf("\nfilled k-space fraction %.4f\n", ref.filled);
   const auto gib = [](std::size_t b) { return double(b) / (1 << 30); };
-  std::printf("reconstruct memory, R2C / C2C: CPU arrays %.2f / %.2f GiB", gib(cpu_t.bytes),
-              gib(cpu_c2c_t.bytes));
+  std::printf("reconstruct memory, R2C / C2C:");
+  if (use_cpu) std::printf(" CPU arrays %.2f / %.2f GiB", gib(cpu_t.bytes), gib(cpu_c2c_t.bytes));
   if (gpu) {
-    std::printf(", CUDA device %.2f / %.2f GiB", gib(gather_t.bytes), gib(gpu_c2c_t.bytes));
+    std::printf(" CUDA device %.2f / %.2f GiB", gib(gather_t.bytes), gib(gpu_c2c_t.bytes));
   }
-  std::printf("\nrelative RI-contrast difference R2C vs C2C (CPU): %.2e\n",
-              contrast_error(cpu_result.ri, cpu_c2c.ri, geom.n_medium));
+  std::printf("\nrelative RI-contrast difference R2C vs C2C (%s): %.2e\n", use_cpu ? "CPU" : "CUDA",
+              contrast_error(ref.ri, ref_c2c.ri, geom.n_medium));
   const auto truth = render_phantom(cell, geom, n, n);
   // RMSE against the phantom over the volume and mean index in the inner 60% of the nucleus.
   const auto score = [&](const Array3<float>& ri) {
@@ -252,16 +275,18 @@ int main(int argc, char** argv) {
     return std::pair{std::sqrt(sq / double(ri.size())), inner / count};
   };
   {
-    const auto [r2c_rmse, r2c_nuc] = score(cpu_result.ri);
-    const auto [c2c_rmse, c2c_nuc] = score(cpu_c2c.ri);
+    const auto [r2c_rmse, r2c_nuc] = score(ref.ri);
+    const auto [c2c_rmse, c2c_nuc] = score(ref_c2c.ri);
     std::printf("against the phantom (nucleus %.4f): R2C RMSE %.3e, nucleus mean %.4f; ", cell[1].n,
                 r2c_rmse, r2c_nuc);
     std::printf("C2C RMSE %.3e, nucleus mean %.4f\n", c2c_rmse, c2c_nuc);
   }
-  if (gpu) {
+  if (gpu && use_cpu) {
     std::printf(
         "relative RI-contrast difference CUDA vs CPU: gather %.2e, scatter %.2e, C2C %.2e\n",
         odt_err, scatter_err, c2c_err);
+  } else if (gpu) {
+    std::printf("relative RI-contrast difference CUDA scatter vs gather: %.2e\n", scatter_err);
   }
 
   // Missing-cone solvers on the same Rytov fields. CPU: one run; CUDA: median of `repeat`.
@@ -284,19 +309,25 @@ int main(int argc, char** argv) {
     std::printf("|---|---:|---:|---:|---:|\n");
     for (auto& c : configs) {
       OdtResult r;
-      const double t_cpu = time_ms([&] { r = reconstruct(ryt, illum, geom, c.opt); });
-      const auto [rmse, nuc] = score(r.ri);
+      double t_cpu = -1;
+      if (use_cpu) t_cpu = time_ms([&] { r = reconstruct(ryt, illum, geom, c.opt); });
       double t_gpu = -1;
       if (gpu) {
         c.opt.backend = Backend::cuda;
-        (void)reconstruct(ryt, illum, geom, c.opt);
+        OdtResult g = reconstruct(ryt, illum, geom, c.opt);
+        if (!use_cpu) r = std::move(g);
         std::vector<double> t;
         for (int i = 0; i < repeat; ++i) {
           t.push_back(time_ms([&] { (void)reconstruct(ryt, illum, geom, c.opt); }));
         }
         t_gpu = median(t);
       }
-      std::printf("| %s | %.0f | %.0f | %.3e | %.4f |\n", c.name, t_cpu, t_gpu, rmse, nuc);
+      const auto [rmse, nuc] = score(r.ri);
+      const auto ms = [](double v) {
+        return v < 0 ? std::string("-") : std::to_string(std::lround(v));
+      };
+      std::printf("| %s | %s | %s | %.3e | %.4f |\n", c.name, ms(t_cpu).c_str(), ms(t_gpu).c_str(),
+                  rmse, nuc);
     }
   }
 
@@ -318,8 +349,11 @@ int main(int argc, char** argv) {
       return reconstruct(rytov(f, b), illum, geom, o);
     };
     std::vector<double> t;
-    for (int i = 0; i < repeat; ++i) t.push_back(time_ms([&] { (void)chain(Backend::cpu); }));
-    r.cpu = median(t);
+    r.cpu = -1;
+    if (use_cpu) {
+      for (int i = 0; i < repeat; ++i) t.push_back(time_ms([&] { (void)chain(Backend::cpu); }));
+      r.cpu = median(t);
+    }
     if (gpu) {
       t.clear();
       (void)chain(Backend::cuda);
@@ -328,12 +362,13 @@ int main(int argc, char** argv) {
     }
     e2e.push_back(r);
   }
-  std::vector<Backend> backends{Backend::cpu};
+  std::vector<Backend> backends;
+  if (use_cpu) backends.push_back(Backend::cpu);
   if (gpu) backends.push_back(Backend::cuda);
-  Row setup_row{"Pipeline: constructor (allocations, cuFFT plans)"};
-  Row bg_row{"Pipeline: set_background"};
-  Row run_row{"Pipeline: run(), copies into and out of its buffers"};
-  Row process_row{"Pipeline: process(), page-locked input and output"};
+  Row setup_row{"Pipeline: constructor (allocations, cuFFT plans)", -1};
+  Row bg_row{"Pipeline: set_background", -1};
+  Row run_row{"Pipeline: run(), copies into and out of its buffers", -1};
+  Row process_row{"Pipeline: process(), page-locked input and output", -1};
   std::vector<Row> stage_rows{{"  upload of the sample holograms"},
                               {"  field extraction (from the start of the upload)"},
                               {"  ratio, LS unwrap, Rytov"},
@@ -391,6 +426,9 @@ int main(int argc, char** argv) {
   stage_rows[0].cpu = -1;
   stage_rows[4].cpu = -1;
   stage_rows[9].cpu = -1;
+  if (!use_cpu) {
+    for (auto& r : stage_rows) r.cpu = -1;
+  }
   e2e.push_back(setup_row);
   e2e.push_back(bg_row);
   e2e.push_back(run_row);
@@ -399,8 +437,8 @@ int main(int argc, char** argv) {
   print_table("end to end, sample holograms in, index out", e2e);
   if (gpu) {
     std::printf("\nPipeline device memory %.2f GiB\n", double(device_bytes) / (1 << 30));
-    std::printf("relative RI-contrast difference CUDA Pipeline vs CPU: %.2e\n",
-                contrast_error(pipe_result.ri, cpu_result.ri, geom.n_medium));
+    std::printf("relative RI-contrast difference CUDA Pipeline vs %s reconstruct: %.2e\n",
+                use_cpu ? "CPU" : "CUDA", contrast_error(pipe_result.ri, ref.ri, geom.n_medium));
   }
 
 #ifdef QORAHOLO_HAS_CUDA
@@ -436,7 +474,7 @@ int main(int argc, char** argv) {
       cudaFreeHost(pinned);
     };
     transfer("sample holograms to device", holo.size() * sizeof(float), true);
-    transfer("index volume to host", cpu_result.ri.size() * sizeof(float), false);
+    transfer("index volume to host", std::size_t(n) * n * n * sizeof(float), false);
 
     std::printf("\n| upload chunks | upload + field extraction (ms) | process() (ms) |\n");
     std::printf("|---:|---:|---:|\n");
