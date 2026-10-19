@@ -107,6 +107,7 @@ def reconstruct(
     geometry: Geometry,
     nz: int = 0,
     gp_iterations: int = 0,
+    gp_transform: str = "r2c",
     mapping: str = "gather",
     backend: str = "cpu",
     return_filled: bool = False,
@@ -114,12 +115,13 @@ def reconstruct(
     """Rytov fields (count, n, n) to a refractive-index volume (nz, n, n).
 
     ``illuminations`` is (count, 2) lateral frequencies (fy, fx) of the incident waves.
-    ``gp_iterations`` runs Gerchberg-Papoulis with n >= n_medium. With ``return_filled`` the
-    fraction of k-space voxels that received data is returned as well.
+    ``gp_iterations`` runs Gerchberg-Papoulis with n >= n_medium, on half spectra
+    (``gp_transform="r2c"``, real part only) or full complex spectra (``"c2c"``). With
+    ``return_filled`` the fraction of k-space voxels that received data is returned as well.
     """
     f, _ = _stack(fields, np.complex64)
     ri, filled = _core.reconstruct(
-        f, _illum(illuminations), geometry, nz, gp_iterations, mapping, backend
+        f, _illum(illuminations), geometry, nz, gp_iterations, gp_transform, mapping, backend
     )
     return (ri, filled) if return_filled else ri
 
@@ -145,6 +147,7 @@ class Pipeline:
         output_size: int = 0,
         nz: int = 0,
         gp_iterations: int = 0,
+        gp_transform: str = "r2c",
         mapping: str = "gather",
         backend: str = "cpu",
         upload_chunks: int = 1,
@@ -159,6 +162,7 @@ class Pipeline:
             geometry,
             nz,
             gp_iterations,
+            gp_transform,
             mapping,
             backend,
             upload_chunks,

@@ -53,6 +53,12 @@ Backend parse_backend(const std::string& s) {
   throw std::invalid_argument("backend must be 'cpu' or 'cuda'");
 }
 
+GpTransform parse_transform(const std::string& s) {
+  if (s == "r2c") return GpTransform::r2c;
+  if (s == "c2c") return GpTransform::c2c;
+  throw std::invalid_argument("gp_transform must be 'r2c' or 'c2c'");
+}
+
 Mapping parse_mapping(const std::string& s) {
   if (s == "gather") return Mapping::gather;
   if (s == "scatter") return Mapping::scatter;
@@ -167,13 +173,14 @@ NB_MODULE(_core, m) {
       "reconstruct",
       [](In3<cfloat> fields,
          nb::ndarray<const float, nb::ndim<2>, nb::c_contig, nb::device::cpu> illuminations,
-         const Geometry& geometry, int nz, int gp_iterations, const std::string& mapping,
-         const std::string& backend) {
+         const Geometry& geometry, int nz, int gp_iterations, const std::string& gp_transform,
+         const std::string& mapping, const std::string& backend) {
         auto f = to_array(fields);
         const auto il = to_illum(illuminations);
         OdtOptions opt;
         opt.nz = nz;
         opt.gp_iterations = gp_iterations;
+        opt.gp_transform = parse_transform(gp_transform);
         opt.mapping = parse_mapping(mapping);
         opt.backend = parse_backend(backend);
         OdtResult r;
@@ -184,7 +191,8 @@ NB_MODULE(_core, m) {
         return nb::make_tuple(to_numpy(std::move(r.ri)), r.filled);
       },
       nb::arg("fields"), nb::arg("illuminations"), nb::arg("geometry"), nb::arg("nz") = 0,
-      nb::arg("gp_iterations") = 0, nb::arg("mapping") = "gather", nb::arg("backend") = "cpu");
+      nb::arg("gp_iterations") = 0, nb::arg("gp_transform") = "r2c", nb::arg("mapping") = "gather",
+      nb::arg("backend") = "cpu");
 
   nb::class_<Pipeline>(m, "Pipeline")
       .def(
@@ -192,8 +200,8 @@ NB_MODULE(_core, m) {
           [](Pipeline* p, int count, int hologram_size, std::array<float, 2> center, float radius,
              int output_size,
              nb::ndarray<const float, nb::ndim<2>, nb::c_contig, nb::device::cpu> illuminations,
-             const Geometry& geometry, int nz, int gp_iterations, const std::string& mapping,
-             const std::string& backend, int upload_chunks) {
+             const Geometry& geometry, int nz, int gp_iterations, const std::string& gp_transform,
+             const std::string& mapping, const std::string& backend, int upload_chunks) {
             PipelineOptions o;
             o.count = count;
             o.hologram_size = hologram_size;
@@ -204,6 +212,7 @@ NB_MODULE(_core, m) {
             o.geometry = geometry;
             o.odt.nz = nz;
             o.odt.gp_iterations = gp_iterations;
+            o.odt.gp_transform = parse_transform(gp_transform);
             o.odt.mapping = parse_mapping(mapping);
             o.odt.backend = parse_backend(backend);
             o.upload_chunks = upload_chunks;
@@ -211,7 +220,7 @@ NB_MODULE(_core, m) {
           },
           nb::arg("count"), nb::arg("hologram_size"), nb::arg("center"), nb::arg("radius"),
           nb::arg("output_size"), nb::arg("illuminations"), nb::arg("geometry"), nb::arg("nz"),
-          nb::arg("gp_iterations"), nb::arg("mapping"), nb::arg("backend"),
+          nb::arg("gp_iterations"), nb::arg("gp_transform"), nb::arg("mapping"), nb::arg("backend"),
           nb::arg("upload_chunks"))
       .def(
           "set_background",
