@@ -9,7 +9,9 @@ transparent sample under many illumination angles and reconstructs its 3D refrac
 QoraHolo implements the standard pipeline: field retrieval from the hologram sideband,
 least-squares phase unwrapping, the Rytov approximation, Ewald-sphere mapping by the Fourier
 diffraction theorem, and two missing-cone solvers: Gerchberg-Papoulis with non-negativity and
-FISTA with a total-variation term. Every stage has a CPU implementation (pocketfft, OpenMP)
+FISTA with a total-variation term. For samples where the first-order models break down, a
+multi-slice beam propagation model (BPM) and its gradient-based inversion account for multiple
+forward scattering. Every stage has a CPU implementation (pocketfft, OpenMP)
 and a CUDA implementation (cuFFT, custom kernels); on the benchmark volumes the two differ by
 4e-6 to 4e-5 relative. `Pipeline` keeps plans and buffers alive between calls and on CUDA
 runs from holograms to index with one upload and one download. A sphere phantom with an
@@ -83,7 +85,11 @@ for (const auto& frame : frames) {
 `examples/quickstart.cpp` is this snippet with a synthetic bead as input. It prints
 `n at the centre 1.3639 (true 1.3600), k-space filled 19.0%` on both backends.
 
-Python (3.12+), built with scikit-build-core and nanobind:
+Python (3.12+), built with scikit-build-core and nanobind. The release workflow builds CPU-only
+wheels (Linux x86_64, Windows AMD64, macOS arm64; one abi3 wheel per platform). There are no
+CUDA wheels: they would have to bundle or pin a CUDA runtime and cuFFT for every driver range,
+so the GPU backend is built from source. The macOS wheel has no OpenMP (Apple clang does not
+ship it), so its element-wise loops run on one thread; the FFTs still use pocketfft's threads.
 
 ```bash
 uv build --wheel                                    # CPU only
@@ -108,6 +114,69 @@ p = qh.Pipeline(
 )
 p.set_background(backgrounds)
 ri = p.run(holograms)  # p.timings: milliseconds per stage of the last run
+```
+
+## Multiple scattering: beam propagation
+
+Born and Rytov assume each point of the sample sees the incident wave. In a large or
+high-contrast object, or in several objects stacked along the optical axis, the wave reaching
+the lower part has already been refracted by the upper part, and first-order reconstructions
+are biased. `bpm_forward` propagates the field slice by slice instead (a thin phase screen
+per voxel, then angular-spectrum propagation in the medium), and `bpm_reconstruct` fits the
+index to the measured field ratios by gradient descent on that model, starting from a Rytov
+reconstruction (learning tomography, Kamilov et al. 2015, 2016; Lim et al. 2019 compare it
+with Rytov ODT on multiple-scattering samples).
+
+![x-z slices: phantom, Rytov ODT, Rytov + GP and BPM inversion for one large bead and three stacked beads](https://raw.githubusercontent.com/NaNIsaac/QoraHolo/main/docs/bpm.png)
+
+128³ voxels of 0.15 µm, 49 illuminations at NA 0.9, true index 1.400 in a medium of 1.337,
+no noise. The data do not come from the discretisation that is inverted:
+
+- **bead**: one sphere of radius 4 µm, fields from the exact partial-wave solution of the
+  scalar Helmholtz equation (`forward_fields(..., model="exact")`);
+- **stack**: three spheres of radius 2 µm at z = −4.5, 0 and 4.5 µm, fields from the BPM on a
+  grid twice as fine in x, y and z (0.075 µm), cut to the coarse grid in Fourier space. This
+  tests the solver and the discretisation, not the BPM approximation itself, since the data
+  come from the same physics model.
+
+| bead (exact data) | RMSE | mean n inside 0.6 R | CUDA (s) | CPU (s) |
+|---|---:|---:|---:|---:|
+| Rytov ODT | 6.87e-3 | 1.3882 | 0.01 | 0.02 |
+| Rytov + 20 GP | 5.36e-3 | 1.4016 | 0.01 | 0.19 |
+| Rytov + 20 FISTA-TV | 4.93e-3 | 1.4009 | 0.05 | 1.93 |
+| BPM, 30 iterations from Rytov + GP | 2.50e-3 | 1.4019 | 0.52 | 23.7 |
+| BPM + TV (weight 3e-2) | 2.39e-3 | 1.4018 | 0.59 | 25.5 |
+| BPM with the plain phase screen | 5.06e-3 | 1.4279 | 0.52 | 23.4 |
+
+| stack (finer-grid BPM data) | RMSE | mean n inside 0.6 R | CUDA (s) | CPU (s) |
+|---|---:|---:|---:|---:|
+| Rytov ODT | 4.94e-3 | 1.3807 | 0.01 | 0.02 |
+| Rytov + 20 GP | 4.27e-3 | 1.3964 | 0.01 | 0.23 |
+| Rytov + 20 FISTA-TV | 3.89e-3 | 1.3990 | 0.05 | 1.86 |
+| BPM, 30 iterations from Rytov + GP | 2.00e-3 | 1.4031 | 0.53 | 23.7 |
+| BPM + TV (weight 3e-2) | 1.95e-3 | 1.4032 | 0.58 | 26.0 |
+| BPM with the plain phase screen | 3.64e-3 | 1.4268 | 0.52 | 24.8 |
+
+Plain Rytov underestimates both objects (by 19% and 31% of the contrast). Gerchberg-Papoulis
+and TV bring the mean back but leave the shape wrong: the bead is flattened and its rim too
+bright, and in the stack the lower spheres are distorted by the shadow of the ones above. The
+BPM inversion halves the RMSE against the best first-order result and recovers three separate
+spheres. It still has the missing-cone elongation along z, since the measured angles are the
+same. BPM times exclude the Rytov + GP start; the CPU and CUDA results agree to the printed
+digits. The TV weight was picked from a coarse sweep on the bead (1e-4 to 1e-1 at 64³) and
+helps little here. Script: `examples/bpm_figure.py`.
+
+The last row of each table is the usual split-step BPM. Its weak-object limit lacks the
+obliquity factor of the scattered wave (see "Beam propagation" below), so tilted
+illuminations are under-modelled and the inversion overshoots to 1.428. In the stack case the
+data were made with the obliquity weight, so that row also carries a model mismatch by
+construction; the bead row does not.
+
+```python
+ry = qh.rytov(fields)                                       # field ratios u / u_background
+start = qh.reconstruct(ry, illum, geom, iterations=20)       # Rytov + GP
+ri, loss = qh.bpm_reconstruct(fields, illum, geom, start, iterations=30, backend="cuda",
+                              return_loss=True)
 ```
 
 ## Array conventions
@@ -167,6 +236,31 @@ minimises ½‖M(F O − P)‖² + λ TV(O) with O ≥ 0 by FISTA (Beck & Teboul
 gradient step is the Gerchberg-Papoulis k-space step and whose proximal step is the fast
 gradient projection on the TV dual (Beck & Teboulle 2009; TV after Rudin, Osher & Fatemi
 1992); λ = `tv_weight` · k₀². Details in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+**Beam propagation.** One slice per voxel. The envelope w = u/u_in is propagated, so its
+spectrum at bin μ is the field spectrum at μ + ν_in, as in the Rytov mapping. Per slice: w is
+multiplied by exp(i k₀ d (n − n_m)), and the spectrum S is updated as
+S ← c (q A + (1 − q) S), with A the spectrum of the screened envelope,
+c = exp(2πi (ν_z − ν_in,z) d) (zero for evanescent waves) and q the obliquity weight
+(n_m/λ)/ν_z, capped at its value at the detection NA. With q = 1 this is the split-step BPM
+(Feit & Fleck 1978); linearised for a weak object it gives i k₀ Δn̂ where first Born gives
+i k₀ (n_m/λ)/ν_z Δn̂, 35% apart at an illumination NA of 0.9 in water. With q the weak limit
+is first Born at every angle (`Bpm.ReducesToBornForWeakObject`: 2.7-3.6% against analytic
+Born for a voxelised sphere, 27% at NA 0.9 without q). After the last slice the field is
+propagated back to z = 0 and cut to the detection pupil, which is the convention of the Rytov
+path. Lateral boundaries are periodic, reflections are not modelled. The inversion minimises
+1/(2A) Σ_a ‖y_a(n) − d_a‖² over the A illuminations by proximal gradient (FISTA with all
+angles per step, or plain steps over `batch`es of angles) with n ≥ n_m and an optional TV
+term on n − n_m; the gradient is computed by running the slices backwards with the stored
+envelopes (`Bpm.AdjointIdentity` checks ⟨Jh, r⟩ = ⟨h, Jᵀr⟩ to 3e-6). Details in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+**Exact sphere.** `forward_fields(..., model="exact")` solves the scalar Helmholtz equation
+for one homogeneous sphere by partial waves (u and ∂u/∂r continuous at the surface; Bohren &
+Huffman 1983 for the vector analogue). The forward-scattered plane waves are refocused to
+z = 0 through Û_s(ν) = i f(θ)/ν_z, the same relation that gives the Fourier diffraction
+theorem when f is the Born amplitude, so the exact and Born fields are directly comparable
+(they agree to 1.5% for a 3 µm sphere at Δn = 5e-4).
 
 **Holograms.** The synthesiser writes |R + u|² with R = a·exp(−2πi ν_c·r), so the term u R*
 sits at ν_in + ν_c. `find_sideband` calls the peak in the half plane x > 0 the +1 order; flip
@@ -282,6 +376,19 @@ takes 1.62 instead of 2.13 ms at 256³ and 12.6 instead of 16.8 ms at 512³, wit
 result bit for bit. Shared-memory tiling was tried and did not help. Details and the
 measurements are in [docs/tv_kernels.md](docs/tv_kernels.md).
 
+**Beam propagation**, 49 illuminations, medians of 3 runs (`qoraholo_bench --bpm 1`), ms:
+
+| | 128³ CPU | 128³ CUDA | 256³ CPU | 256³ CUDA |
+|---|---:|---:|---:|---:|
+| `bpm_forward`, host in / host out | 337 | 22 | 2782 | 130 |
+| one `bpm_reconstruct` iteration (forward, gradient, proximal step) | 719 | 16 | 5995 | 170 |
+
+An iteration is 4 n_z 2D FFTs per illumination. The CUDA forward includes building the
+propagation tables on the host and creating the cuFFT plan, which the per-iteration figure
+(from runs of 1 and 6 iterations) leaves out. At 256³ the stored envelopes of all 49
+illuminations would take 6.6 GB, more than half of the free device memory, so the gradient
+runs in chunks of illuminations (the size is chosen from `cudaMemGetInfo`).
+
 Per-call functions at 256³, by stage:
 
 | stage | CPU | CUDA |
@@ -306,22 +413,23 @@ Relative difference of the index contrast between CUDA and CPU: 3.8e-6 (gather a
 ## Layout
 
 ```
-include/qoraholo/   public headers (array, field, unwrap, odt, phantom)
+include/qoraholo/   public headers (array, field, unwrap, odt, bpm, phantom, pipeline)
 src/cpu/            pocketfft + OpenMP implementations
 src/cuda/           cuFFT + kernels
 src/common.hpp      index and physics helpers compiled for host and device
 tests/              GoogleTest; CUDA tests skip without a device
 bench/              per-stage timing
 python/             nanobind module and the qoraholo package
-examples/           quickstart.cpp, readme_figure.py
+examples/           quickstart.cpp, readme_figure.py, bpm_figure.py
 ```
 
 Design notes and the data flow are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## What this does not do
 
-- No vectorial or multiple-scattering models (beam propagation, Lippmann-Schwinger); first
-  Born / Rytov only.
+- Scalar models only. Multiple scattering through the beam propagation model, which keeps
+  forward scattering only (no reflection) and is one slice per voxel; no Lippmann-Schwinger
+  or multi-layer Born solver.
 - No aberration or pupil-function correction, no automatic refocusing, no axial-shift or
   illumination-intensity normalisation beyond dividing by the background field.
 - One regulariser: isotropic TV. No edge-preserving or learned priors, no automatic choice of
@@ -331,6 +439,18 @@ Design notes and the data flow are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.m
 
 ## References
 
+- U. S. Kamilov et al., "Learning approach to optical tomography", Optica 2, 517 (2015);
+  U. S. Kamilov et al., "Optical tomographic image reconstruction based on beam propagation
+  and sparse regularization", IEEE Trans. Comput. Imaging 2, 59 (2016).
+- J. Lim et al., "High-fidelity optical diffraction tomography of multiple scattering
+  samples", Light Sci. Appl. 8, 82 (2019).
+- S. Chowdhury et al., "High-resolution 3D refractive index microscopy of multiple-scattering
+  samples from intensity images", Optica 6, 1211 (2019).
+- J. W. Goodman, *Introduction to Fourier Optics*, 3rd ed., Roberts (2005), ch. 3 (angular
+  spectrum); M. D. Feit and J. A. Fleck, "Light propagation in graded-index optical fibers",
+  Appl. Opt. 17, 3990 (1978) (split-step beam propagation).
+- C. F. Bohren and D. R. Huffman, *Absorption and Scattering of Light by Small Particles*,
+  Wiley (1983), ch. 4 (partial-wave solution for a sphere; the scalar case is used here).
 - E. Wolf, "Three-dimensional structure determination of semi-transparent objects from
   holographic data", Opt. Commun. 1, 153 (1969).
 - A. C. Kak and M. Slaney, *Principles of Computerized Tomographic Imaging*, IEEE Press
