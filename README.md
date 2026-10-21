@@ -40,6 +40,7 @@ was picked from a sweep on this phantom, so the TV numbers are tuned to it. Scri
 Requires CMake 3.28+, a C++20 compiler (gcc 13+, MSVC 2022), and for the GPU backend the
 CUDA Toolkit 12.8 or newer.
 
+<!-- test unix -->
 ```bash
 cmake --preset cpu-release          # or cuda-release
 cmake --build --preset cpu-release
@@ -91,9 +92,28 @@ CUDA wheels: they would have to bundle or pin a CUDA runtime and cuFFT for every
 so the GPU backend is built from source. The macOS wheel has no OpenMP (Apple clang does not
 ship it), so its element-wise loops run on one thread; the FFTs still use pocketfft's threads.
 
+Build the wheel from a clone, install it into a virtual environment and import it. CPU only:
+
+<!-- test unix -->
 ```bash
-uv build --wheel                                    # CPU only
-CMAKE_ARGS="-DQORAHOLO_CUDA=ON" uv build --wheel    # with the CUDA backend
+uv build --wheel
+uv venv
+uv pip install dist/*.whl
+.venv/bin/python -c "import qoraholo"
+```
+
+<!-- test windows -->
+```powershell
+uv build --wheel
+uv venv
+uv pip install (Get-ChildItem dist/*.whl).FullName
+.venv\Scripts\python -c "import qoraholo"
+```
+
+With the CUDA backend, build the wheel with:
+
+```bash
+CMAKE_ARGS="-DQORAHOLO_CUDA=ON" uv build --wheel
 ```
 
 On Windows the CUDA build loads cuFFT from `%CUDA_PATH%\bin`.
