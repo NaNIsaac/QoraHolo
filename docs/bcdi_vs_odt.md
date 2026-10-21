@@ -24,7 +24,7 @@ repository it also says what the current tests establish and what they do not.
 | Fourier coverage | a small box around G, \|Δq\| ≪ k | a union of caps through K = 0, laterally out to (NA_ill + NA)/λ, with a missing cone along the optical axis |
 | Inverse problem | non-convex: modulus and support projections (ER, HIO, RAAR, shrinkwrap) | linear in V: Rytov gather, Landweber, Gerchberg–Papoulis, FISTA-TV |
 | Ambiguities | global phase, translation, twin, phase ramp | none in the measured region; the null space is the missing cone |
-| What fills the gaps | the support constraint, with oversampling ≥ 2 per axis | priors: non-negativity, total variation |
+| What fills the gaps | the support constraint, with oversampling ≥ 2 per axis | priors: a real-valued V, non-negativity, total variation |
 | Noise | Poisson counts | camera noise on the hologram; Gaussian in the examples |
 | The phase means | G·u: the displacement along G, i.e. strain | optical path delay: δn integrated along the beam |
 
@@ -50,7 +50,7 @@ That grid is linear in q only to first order, and it is sheared: the q steps for
 non-orthogonal matrix B. The linear fit leaves a residual of 0.3–0.6 % on the benchmark grids
 (the benchmark's linear fit). The real-space voxel of a detector-frame reconstruction is
 then R = 2π (B⁻¹)ᵀ diag(1/N). QoraPhase has no geometry of its own: the
-[input contract](https://github.com/NaNIsaac/QoraPhase/blob/main/docs/input-contract.md)
+input contract ([QoraPhase#9](https://github.com/NaNIsaac/QoraPhase/pull/9))
 leaves B to the caller.
 
 **ODT.** A transparent sample with refractive index n(r) in a medium n_m is illuminated by
@@ -61,12 +61,16 @@ R(μ′) = i/(4π ν_z) · V̂(μ′, ν_z − ν_in,z). Two first-order models 
 
 - **Born:** the scattered field u_s itself is the linear quantity. It is valid while the
   phase the object adds is small, \|δn\| k0 L ≪ 1 (`born_phase` in #2).
-- **Rytov:** u_in · ln(u/u_in) stands in for u_s. It tolerates a large accumulated phase as
-  long as δn varies slowly, which is why `rytov` comes before `reconstruct` in QoraHolo's
-  pipeline. The logarithm needs the phase unwrapped (least squares in QoraHolo).
+- **Rytov:** u_in · ln(u/u_in) stands in for u_s. It holds while δn is small and the
+  scattered phase φ_s varies slowly over a wavelength, roughly δn ≫ (λ\|∇φ_s\|/2π)²
+  (Chen and Stamnes, 1998; Devaney). The condition does not involve the object's size, so
+  Rytov tolerates a large accumulated phase where Born fails. This is why `rytov` comes
+  before `reconstruct` in QoraHolo's pipeline. The logarithm needs the phase unwrapped (least squares in QoraHolo).
 
-The cap is not flat. Its curvature is what lets 31 to 49 illuminations fill a 3D volume, so
-the mapping onto a Cartesian K grid is done by an Ewald-sphere gather. Alternatively, as in
+Each illumination contributes a cap through K = 0, shifted by −k_in. Tilting the
+illumination moves the cap, and the union of the tilted caps fills a 3D region, minus the
+missing cone around the axis. Because each cap is a curved surface, not a plane, the
+mapping onto a Cartesian K grid is done by an Ewald-sphere gather. Alternatively, as in
 #2, both forward and adjoint are evaluated as exact sums at the cap frequencies. When the
 first order fails (a thick cell, a large δn), the multi-slice beam propagation method (BPM)
 models forward multiple scattering. #2 measures exactly that failure: the Born–BPM gap
@@ -125,22 +129,27 @@ removes the bad picks; that is QoraPhase#20.
 the problem is least squares. Its non-uniqueness lies entirely in the null space of A, the
 unmeasured K.
 
-- Rytov ODT in QoraHolo is a direct gather. Each measured cap value is placed at its K, and an
-  inverse 3D FFT follows.
+- Rytov ODT in QoraHolo is a direct gather. Each measured cap value is divided by the
+  transfer factor (i/(4π ν_z) in 2D) and placed at the nearest K voxel. Values landing on the
+  same voxel are averaged ("normalise" in the data flow of `ARCHITECTURE.md`). An inverse 3D
+  FFT follows, then n = √(n_m² + V/k0²).
 - Landweber (#4) iterates V ← V + τ Aᴴ(d − A V), restricted to a real potential. This needs
-  the exact adjoint Aᴴ, because a wrong adjoint changes the fixed point. #2 tests ⟨Av, u⟩ =
+  the exact adjoint Aᴴ, because a wrong adjoint moves the fixed point or makes the iteration diverge. #2 tests ⟨Av, u⟩ =
   ⟨v, Aᴴu⟩ to 1e-12 for exactly this reason.
 - Gerchberg–Papoulis alternates between the measured K values and an object-space constraint
   (non-negativity).
 - FISTA-TV adds a total-variation penalty.
 
-With a convex penalty the minimiser is unique and independent of the start. There is no twin
-and no translation ambiguity.
+The iterations converge, but where to depends on the start through the null space. Landweber
+from zero goes to the minimum-norm solution (#4). GP goes to a point of the intersection of
+its two convex sets. TV is convex but not strictly convex, so FISTA-TV need not have a unique
+minimiser either. Only a strictly convex objective, e.g. one with a Tikhonov term, makes the
+minimiser unique. There is no twin and no translation ambiguity.
 
 Gerchberg–Papoulis and BCDI's error reduction are the same alternating-projection loop: data
 consistency in Fourier space, a constraint in object space. The difference is in the Fourier
-constraint. In GP it fixes known complex values, an affine and hence convex set, so the
-iteration converges. In ER it fixes only the magnitude, which is not convex. That one
+constraint. In GP it fixes known complex values, an affine set; the object-space set
+(V ≥ 0) is convex too, so the iteration converges to a point of their intersection. In ER it fixes only the magnitude, which is not convex. That one
 difference is the gap between the two inverse problems.
 
 ## Missing information
@@ -150,15 +159,17 @@ difference is the gap between the two inverse problems.
 | Never measured | the phase, everywhere | nothing on the measured caps |
 | Unmeasured regions | detector gaps, hot or saturated pixels (masked); beyond the detector edge and the rocking range | the missing cone along the optical axis, outside the illumination and detection NA |
 | How the code treats them | masked voxels are left free by the modulus projection, never forced to zero (QoraPhase input contract) | outside the coverage, V̂ is not constrained by the data |
-| What puts information back | the support constraint and oversampling | priors only: non-negativity (GP), TV (FISTA-TV) |
+| What puts information back | the support constraint and oversampling | priors only: a real-valued V (no absorption), which mirrors the measured caps to −K; non-negativity (GP); TV (FISTA-TV) |
 | Visible effect | resolution set by the q extent of the crop (R above); weak high-q tails lost to noise | axial elongation: PSF 0.502 µm against 0.151 µm laterally (#4); halo and underestimated δn |
 
 In BCDI the direct beam does not reach a detector parked at a Bragg angle. So there is no
 beamstop hole at the centre, unlike forward-scattering CDI. What is missing is the phase, plus
 whatever the gaps and the finite box cut out. In ODT the phase is measured, but a whole cone
-of K is not, and no constraint short of a prior recovers it. #4 makes this quantitative. Of a
-36 % underestimate of δn for a 2 µm disc, 23.6 % is information the data do not carry
-(projection onto the row space), 12.0 % is early stopping and 0.18 % is the Born model error.
+of K is not, and only priors put information there. The most physical of them is a
+real-valued V (no absorption), which mirrors the measured caps to −K: in #4 it raises the
+rank from 715 to 1005 of 4096. #4 makes the rest quantitative. Of a 36 % underestimate of δn
+for a 2 µm disc, 23.6 % is information the data do not carry (projection onto the row space,
+at a cutoff of 1e-5 of the largest singular value), 12.0 % is early stopping and 0.18 % is the Born model error.
 
 ## What each repository's validation establishes
 
@@ -223,7 +234,7 @@ Not established:
 | phase | G·u, lattice displacement along G (strain) | optical path delay from δn, integrated along the beam |
 | support | hard constraint that makes phase retrieval unique; shrinkwrapped | optional prior; the measured caps fix V̂ without it |
 | error | Fourier error on √I with the best scale | residual of the complex field (\|\|d − A V\|\| / \|\|d\|\|) |
-| resolution | q extent of the crop: R = 2π (B⁻¹)ᵀ diag(1/N) | (NA_ill + NA)/λ laterally, worse axially from the missing cone |
+| resolution | q extent of the crop: R = 2π (B⁻¹)ᵀ diag(1/N) | lateral cutoff frequency (NA_ill + NA)/λ; PSF FWHM ≈ 0.6 λ/(NA_ill + NA) for a uniformly filled band (0.151 µm measured in #4); worse axially from the missing cone (0.502 µm) |
 | oversampling | > 2 per axis, needed for phase retrieval | not needed; Nyquist sampling of the field suffices |
 | Born | the kinematic far-field model, valid for crystals well below the extinction length | the first-order field model, valid for \|δn\| k0 L ≪ 1 |
 
