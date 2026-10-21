@@ -2,6 +2,7 @@
 
 #include "qoraholo/array.hpp"
 #include "qoraholo/backend.hpp"
+#include "qoraholo/bpm.hpp"
 #include "qoraholo/field.hpp"
 #include "qoraholo/odt.hpp"
 #include "qoraholo/phantom.hpp"

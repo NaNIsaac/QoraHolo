@@ -13,6 +13,10 @@ namespace qoraholo::cpu {
 void fft(cfloat* data, const std::vector<std::size_t>& shape, const std::vector<std::size_t>& axes,
          bool forward, float scale = 1.0f);
 
+// In-place 2D FFT of one n x n image on the calling thread, for callers that parallelise over
+// images themselves.
+void fft2(cfloat* data, int n, bool forward, float scale = 1.0f);
+
 // Real-to-complex FFT over all three axes of a dense (nz, ny, nx) array into the half spectrum
 // (nz, ny, nx / 2 + 1), and its inverse times scale. irfft3 overwrites its input.
 void rfft3(const float* in, cfloat* out, int nz, int ny, int nx);

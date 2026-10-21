@@ -49,9 +49,11 @@ target_compile_options(qoraholo_warnings INTERFACE
 
 add_library(qoraholo
   src/api.cpp
+  src/bpm.cpp
   src/phantom.cpp
   src/pipeline.cpp
   src/cpu/fft.cpp
+  src/cpu/bpm.cpp
   src/cpu/field.cpp
   src/cpu/odt.cpp
   src/cpu/tv.cpp

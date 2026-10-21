@@ -27,6 +27,12 @@ void fft(cfloat* data, const std::vector<std::size_t>& shape, const std::vector<
                  static_cast<std::size_t>(threads()));
 }
 
+void fft2(cfloat* data, int n, bool forward, float scale) {
+  const pocketfft::shape_t shape{std::size_t(n), std::size_t(n)};
+  const pocketfft::stride_t stride{std::ptrdiff_t(n * sizeof(cfloat)), sizeof(cfloat)};
+  pocketfft::c2c(shape, stride, stride, {0, 1}, forward, data, data, scale, std::size_t{1});
+}
+
 namespace {
 
 pocketfft::stride_t dense_strides(const pocketfft::shape_t& shape, std::ptrdiff_t element) {

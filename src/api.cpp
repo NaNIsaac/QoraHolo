@@ -136,6 +136,70 @@ OdtResult reconstruct(const Array3<cfloat>& rytov_fields,
   return cpu::reconstruct(rytov_fields, illuminations, grid, geometry, options);
 }
 
+namespace {
+
+BpmTables checked_bpm_tables(int nz, int n, int count, std::span<const Illumination> illuminations,
+                             const Geometry& geometry, bool obliquity, Backend backend,
+                             const char* who) {
+  const std::string w(who);
+  require(n >= 4 && n % 2 == 0 && nz >= 1, w + ": volume must be (nz, n, n) with an even n");
+  require(count >= 1 && static_cast<std::size_t>(count) == illuminations.size(),
+          w + ": need one illumination per field");
+  require(geometry.wavelength > 0 && geometry.pixel > 0 && geometry.n_medium > 0 && geometry.na > 0,
+          w + ": geometry values must be positive");
+  const float fm = geometry.n_medium / geometry.wavelength;
+  for (const auto& il : illuminations) {
+    require(il.fy * il.fy + il.fx * il.fx < fm * fm,
+            w + ": illumination frequency beyond n_medium / wavelength");
+  }
+  if (backend == Backend::cuda) require_cuda();
+  return bpm_tables(n, nz, illuminations, geometry, obliquity);
+}
+
+Array3<float> contrast(const Array3<float>& ri, float n_medium) {
+  Array3<float> x = ri;
+  for (float& v : x.data) v -= n_medium;
+  return x;
+}
+
+}  // namespace
+
+Array3<cfloat> bpm_forward(const Array3<float>& ri, std::span<const Illumination> illuminations,
+                           const Geometry& geometry, const BpmOptions& options) {
+  require(ri.ny == ri.nx, "bpm_forward: volume must be (nz, n, n)");
+  const BpmTables t =
+      checked_bpm_tables(ri.nz, ri.nx, static_cast<int>(illuminations.size()), illuminations,
+                         geometry, options.obliquity, options.backend, "bpm_forward");
+  const Array3<float> x = contrast(ri, geometry.n_medium);
+#ifdef QORAHOLO_HAS_CUDA
+  if (options.backend == Backend::cuda) return cuda::bpm_forward(x, t);
+#endif
+  return cpu::bpm_forward(x, t);
+}
+
+BpmResult bpm_reconstruct(const Array3<cfloat>& fields, std::span<const Illumination> illuminations,
+                          const Geometry& geometry, const Array3<float>& initial,
+                          const BpmSolveOptions& options) {
+  require(initial.ny == initial.nx && fields.ny == initial.ny && fields.nx == initial.nx,
+          "bpm_reconstruct: fields (count, n, n) and initial (nz, n, n) must share n");
+  require(options.iterations >= 0 && options.step > 0 && options.tv_weight >= 0 &&
+              options.tv_inner >= 1,
+          "bpm_reconstruct: invalid solver options");
+  const BpmTables t = checked_bpm_tables(initial.nz, initial.nx, fields.nz, illuminations, geometry,
+                                         options.obliquity, options.backend, "bpm_reconstruct");
+  BpmResult r;
+#ifdef QORAHOLO_HAS_CUDA
+  if (options.backend == Backend::cuda) {
+    r = cuda::bpm_reconstruct(fields, contrast(initial, geometry.n_medium), t, options);
+  }
+#endif
+  if (options.backend == Backend::cpu) {
+    r = cpu::bpm_reconstruct(fields, contrast(initial, geometry.n_medium), t, options);
+  }
+  for (float& v : r.ri.data) v += geometry.n_medium;
+  return r;
+}
+
 std::vector<Illumination> circular_scan(int count, float na_illumination,
                                         const Geometry& geometry) {
   require(count >= 1, "circular_scan: count must be positive");

@@ -152,6 +152,29 @@ QH_HD void tv_gradient(const float* zv, const Volume& v, int z, int y, int x, fl
 // t_{k+1} of FISTA and FGP.
 QH_HD float fista_t(float t) { return 0.5f * (1.0f + sqrtf(1.0f + 4.0f * t * t)); }
 
+// One slice of the BPM on spectrum bin: S <- c (q A + (1 - q) S), A the spectrum of the
+// screened envelope, c the propagator, q the obliquity weight. With q = 1 this is the plain
+// split step; otherwise the screen's scattered part q (A - S) is weighted and S passes as is.
+QH_HD void bpm_step(float cre, float cim, float q, float are, float aim, float& sre, float& sim) {
+  const float tre = q * are + (1.0f - q) * sre;
+  const float tim = q * aim + (1.0f - q) * sim;
+  sre = cre * tre - cim * tim;
+  sim = cre * tim + cim * tre;
+}
+
+// Adjoint of bpm_step for the incoming adjoint g of S after the step: U = conj(c) g, whose
+// part q U goes back through the screen (returned in a) and (1 - q) U to S before the step
+// (returned in g).
+QH_HD void bpm_step_adjoint(float cre, float cim, float q, float& gre, float& gim, float& are,
+                            float& aim) {
+  const float ure = cre * gre + cim * gim;
+  const float uim = cre * gim - cim * gre;
+  are = q * ure;
+  aim = q * uim;
+  gre = (1.0f - q) * ure;
+  gim = (1.0f - q) * uim;
+}
+
 // Real part of the principal sqrt(n_m^2 + O / k0^2): refractive index from scattering potential.
 QH_HD float index_from_potential(float re, float im, float nm2, float inv_k02) {
   const float a = nm2 + re * inv_k02;

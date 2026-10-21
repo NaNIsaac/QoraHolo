@@ -6,8 +6,10 @@
 #include <cstddef>
 #include <memory>
 #include <span>
+#include <vector>
 
 #include "common.hpp"
+#include "qoraholo/bpm.hpp"
 #include "qoraholo/field.hpp"
 #include "qoraholo/odt.hpp"
 #include "qoraholo/pipeline.hpp"
@@ -54,6 +56,22 @@ CropPlan crop_plan(const FieldOptions& options, std::array<float, 2> center, int
 detail::OdtGrid odt_grid(int n, int count, std::span<const Illumination> illuminations,
                          const Geometry& geometry, const OdtOptions& options);
 
+// Per-illumination tables of the BPM, each count * n * n with lateral bins in FFT order,
+// computed in double on the host so both backends use the same values.
+struct BpmTables {
+  int n = 0;
+  int nz = 0;
+  int count = 0;
+  float phase = 0;           // k0 * pixel: screen phase per unit of n - n_medium
+  std::vector<cfloat> step;  // envelope propagator over one voxel, zero outside the medium band
+  std::vector<cfloat> last;  // from the last slice back to z = 0, times the detection pupil
+  std::vector<float> q;      // weight of the scattered part of a slice (1 without obliquity)
+  float lipschitz = 0;       // see BpmSolveOptions::step
+};
+
+BpmTables bpm_tables(int n, int nz, std::span<const Illumination> illuminations,
+                     const Geometry& geometry, bool obliquity);
+
 class Pipeline::Impl {
  public:
   virtual ~Impl() = default;
@@ -77,6 +95,13 @@ Array3<cfloat> rytov(const Array3<cfloat>& ratio);
 OdtResult reconstruct(const Array3<cfloat>& rytov_fields, std::span<const Illumination> illum,
                       const detail::OdtGrid& grid, const Geometry& geometry,
                       const OdtOptions& options, OdtTimings* timings = nullptr);
+// x: n - n_medium. fields: measured ratios.
+Array3<cfloat> bpm_forward(const Array3<float>& x, const BpmTables& t);
+BpmResult bpm_reconstruct(const Array3<cfloat>& fields, Array3<float> x, const BpmTables& t,
+                          const BpmSolveOptions& options);
+// Linearisation of bpm_forward at x: J h, and J^T r = Re(J^H r), for the adjoint test.
+Array3<cfloat> bpm_jvp(const Array3<float>& x, const Array3<float>& h, const BpmTables& t);
+Array3<float> bpm_vjp(const Array3<float>& x, const Array3<cfloat>& r, const BpmTables& t);
 }  // namespace cpu
 
 #ifdef QORAHOLO_HAS_CUDA
@@ -91,6 +116,10 @@ OdtResult reconstruct(const Array3<cfloat>& rytov_fields, std::span<const Illumi
                       const detail::OdtGrid& grid, const Geometry& geometry,
                       const OdtOptions& options, OdtTimings* timings = nullptr,
                       TvKernel tv_kernel = TvKernel::fused);
+Array3<cfloat> bpm_forward(const Array3<float>& x, const BpmTables& t);
+BpmResult bpm_reconstruct(const Array3<cfloat>& fields, Array3<float> x, const BpmTables& t,
+                          const BpmSolveOptions& options);
+Array3<float> bpm_vjp(const Array3<float>& x, const Array3<cfloat>& r, const BpmTables& t);
 }  // namespace cuda
 #endif
 

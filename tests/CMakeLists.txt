@@ -14,6 +14,7 @@ add_executable(qoraholo_tests
   test_odt.cpp
   test_cuda.cpp
   test_pipeline.cpp
+  test_bpm.cpp
 )
 target_include_directories(qoraholo_tests PRIVATE ${PROJECT_SOURCE_DIR}/src)
 target_include_directories(qoraholo_tests SYSTEM PRIVATE ${pocketfft_SOURCE_DIR})
