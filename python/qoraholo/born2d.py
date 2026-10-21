@@ -25,6 +25,7 @@ multiple scattering; ``bpm_forward`` keeps forward multiple scattering.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import cached_property
 
 import numpy as np
 
@@ -91,15 +92,19 @@ class Born2D:
         inverse = np.exp(2j * np.pi * np.outer(self.x, self.mu)) / (self.n * self.pixel)
         return ez, ex, transfer, inverse
 
+    @cached_property
+    def _tables(self) -> list:
+        """``_rows`` for every illumination, computed once (the model is immutable)."""
+        return [self._rows(fx) for fx in self.illuminations]
+
     def forward(self, v) -> np.ndarray:
         """Potential (nz, n), µm⁻² -> scattered field ratios u_s / u_in at z = 0, (count, n)."""
         v = np.asarray(v)
         if v.shape != (self.nz, self.n):
             raise ValueError(f"potential has shape {v.shape}, expected {(self.nz, self.n)}")
         out = np.empty((len(self.illuminations), self.n), complex)
-        for a, fx in enumerate(self.illuminations):
-            ez, ex, transfer, inverse = self._rows(fx)
-            spectrum = self.pixel**2 * np.einsum("mz,zx,mx->m", ez, v, ex)
+        for a, (ez, ex, transfer, inverse) in enumerate(self._tables):
+            spectrum = self.pixel**2 * np.sum((ez @ v) * ex, axis=1)
             out[a] = inverse @ (transfer * spectrum)
         return out
 
@@ -110,8 +115,7 @@ class Born2D:
             expected = (len(self.illuminations), self.n)
             raise ValueError(f"fields have shape {fields.shape}, expected {expected}")
         out = np.zeros((self.nz, self.n), complex)
-        for a, fx in enumerate(self.illuminations):
-            ez, ex, transfer, inverse = self._rows(fx)
+        for a, (ez, ex, transfer, inverse) in enumerate(self._tables):
             g = np.conj(transfer) * (inverse.conj().T @ fields[a])
-            out += self.pixel**2 * np.einsum("m,mz,mx->zx", g, ez.conj(), ex.conj())
+            out += self.pixel**2 * ((ez.conj().T * g) @ ex.conj())
         return out
