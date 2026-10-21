@@ -117,8 +117,10 @@ OdtResult reconstruct(const Array3<cfloat>& rytov_fields, std::span<const Illumi
                       const OdtOptions& options, OdtTimings* timings = nullptr,
                       TvKernel tv_kernel = TvKernel::fused);
 Array3<cfloat> bpm_forward(const Array3<float>& x, const BpmTables& t);
+// chunk: illuminations per device pass of the gradient; 0 picks the largest that keeps the
+// stored envelopes within half the free device memory.
 BpmResult bpm_reconstruct(const Array3<cfloat>& fields, Array3<float> x, const BpmTables& t,
-                          const BpmSolveOptions& options);
+                          const BpmSolveOptions& options, int chunk = 0);
 Array3<float> bpm_vjp(const Array3<float>& x, const Array3<cfloat>& r, const BpmTables& t);
 }  // namespace cuda
 #endif

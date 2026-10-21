@@ -77,6 +77,7 @@ if(QORAHOLO_CUDA)
     src/cuda/runtime.cu
     src/cuda/field.cu
     src/cuda/unwrap.cu
+    src/cuda/bpm.cu
     src/cuda/odt.cu
     src/cuda/tv.cu
     src/cuda/pipeline.cu

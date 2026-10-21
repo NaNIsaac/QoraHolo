@@ -136,3 +136,62 @@ TEST_F(Cuda, TvKernelVariantsAgree) {
   }
 }
 #endif
+
+TEST_F(Cuda, BpmMatchesCpu) {
+  const auto illum = circular_scan(7, 0.9f, geom);
+  const auto ri = render_phantom(spheres, geom, 32, 48);
+  BpmOptions gpu;
+  gpu.backend = Backend::cuda;
+  EXPECT_LT(relative_error(bpm_forward(ri, illum, geom, gpu), bpm_forward(ri, illum, geom)), 1e-4);
+}
+
+#ifdef QORAHOLO_HAS_CUDA
+TEST_F(Cuda, BpmAdjointMatchesCpu) {
+  const auto illum = circular_scan(7, 0.9f, geom);
+  const auto ri = render_phantom(spheres, geom, 32, 48);
+  const BpmTables t = bpm_tables(48, 32, illum, geom, true);
+  Array3<float> x = ri;
+  for (float& v : x.data) v -= geom.n_medium;
+  Array3<cfloat> r(7, 48, 48);
+  for (std::size_t i = 0; i < r.size(); ++i) {
+    r.data[i] = {float(std::sin(0.7 * double(i))), float(std::cos(1.3 * double(i)))};
+  }
+  EXPECT_LT(relative_error(cuda::bpm_vjp(x, r, t), cpu::bpm_vjp(x, r, t)), 1e-4);
+}
+#endif
+
+TEST_F(Cuda, BpmReconstructionMatchesCpu) {
+  const auto illum = circular_scan(7, 0.9f, geom);
+  const auto data = bpm_forward(render_phantom(spheres, geom, 32, 48), illum, geom);
+  const Array3<float> initial(32, 48, 48, geom.n_medium);
+  for (int batch : {0, 3}) {
+    BpmSolveOptions o;
+    o.iterations = 5;
+    o.batch = batch;
+    o.tv_weight = 1e-2f;
+    const auto a = bpm_reconstruct(data, illum, geom, initial, o);
+    o.backend = Backend::cuda;
+    const auto b = bpm_reconstruct(data, illum, geom, initial, o);
+    Array3<float> da = a.ri;
+    Array3<float> db = b.ri;
+    for (float& v : da.data) v -= geom.n_medium;
+    for (float& v : db.data) v -= geom.n_medium;
+    EXPECT_LT(relative_error(db, da), 1e-3) << batch;
+    EXPECT_NEAR(b.loss.back(), a.loss.back(), 1e-3 * a.loss.back()) << batch;
+  }
+}
+
+#ifdef QORAHOLO_HAS_CUDA
+// The gradient over all illuminations computed in device passes of 2 (memory bound) is the same.
+TEST_F(Cuda, BpmChunkedGradient) {
+  const auto illum = circular_scan(7, 0.9f, geom);
+  const auto data = bpm_forward(render_phantom(spheres, geom, 32, 48), illum, geom);
+  const BpmTables t = bpm_tables(48, 32, illum, geom, true);
+  const Array3<float> x(32, 48, 48);
+  BpmSolveOptions o;
+  o.iterations = 3;
+  const auto a = cuda::bpm_reconstruct(data, x, t, o);
+  const auto b = cuda::bpm_reconstruct(data, x, t, o, 2);
+  EXPECT_LT(relative_error(b.ri, a.ri), 1e-5);
+}
+#endif
