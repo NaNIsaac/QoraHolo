@@ -34,6 +34,26 @@ QORAHOLO_BUILD_TESTS = "OFF"
 QORAHOLO_BUILD_BENCH = "OFF"
 QORAHOLO_BUILD_EXAMPLES = "OFF"
 
+# CPU wheels only. One abi3 build per platform. Linux and Windows bundle the OpenMP runtime
+# (auditwheel, delvewheel); Apple clang has no OpenMP, so macOS uses pocketfft's threads only.
+[tool.cibuildwheel]
+build = "cp312-*"
+skip = "*-musllinux_*"
+archs = ["native"]
+test-requires = ["pytest"]
+test-command = "pytest -q {project}/python/tests"
+
+[tool.cibuildwheel.linux]
+archs = ["x86_64"]
+
+[tool.cibuildwheel.windows]
+archs = ["AMD64"]
+before-build = "pip install delvewheel"
+repair-wheel-command = "delvewheel repair -w {dest_dir} {wheel}"
+
+[tool.cibuildwheel.macos]
+archs = ["arm64"]
+
 [tool.pytest.ini_options]
 testpaths = ["python/tests"]
 
