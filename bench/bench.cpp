@@ -7,7 +7,9 @@
 // are cudaEvent times without copies. The end-to-end table compares the per-call chain with the
 // Pipeline, whose CUDA stage times are cudaEvent intervals. --cpu 0 skips the CPU backend
 // (its 512^3 solver runs need several GiB of host memory); CUDA results are then compared with
-// each other and with the phantom only. --tv 1 runs only the TV kernel comparison.
+// each other and with the phantom only. --tv 1 runs only the TV kernel comparison. --bpm 1 runs
+// only the beam propagation timings: one forward pass and one inversion iteration (gradient over
+// all angles and the proximal step), the latter from runs of 1 and 6 iterations.
 
 #include <algorithm>
 #include <chrono>
@@ -83,6 +85,7 @@ int main(int argc, char** argv) {
   int repeat = 3;
   int use_cpu = 1;
   int tv_only = 0;
+  int bpm_only = 0;
   for (int i = 1; i + 1 < argc; i += 2) {
     const int v = std::atoi(argv[i + 1]);
     if (!std::strcmp(argv[i], "--field")) n = v;
@@ -91,6 +94,7 @@ int main(int argc, char** argv) {
     if (!std::strcmp(argv[i], "--repeat")) repeat = v;
     if (!std::strcmp(argv[i], "--cpu")) use_cpu = v;
     if (!std::strcmp(argv[i], "--tv")) tv_only = v;
+    if (!std::strcmp(argv[i], "--bpm")) bpm_only = v;
   }
   const int holo_n = 2 * n;
   const bool gpu = cuda_available();
@@ -116,6 +120,48 @@ int main(int argc, char** argv) {
     std::printf("GPU: %s\n", prop.name);
   }
 #endif
+
+  if (bpm_only) {
+    const auto ri = render_phantom(cell, geom, n, n);
+    const auto data = bpm_forward(ri, illum, geom);
+    std::printf("\nbeam propagation, %d angles, %d^3, median of %d (ms)\n\n", angles, n, repeat);
+    std::printf("| | CPU | CUDA |\n|---|---:|---:|\n");
+    std::vector<Backend> backends;
+    if (use_cpu) backends.push_back(Backend::cpu);
+    if (gpu) backends.push_back(Backend::cuda);
+    double fwd[2] = {-1, -1};
+    double iter[2] = {-1, -1};
+    for (Backend b : backends) {
+      const int k = b == Backend::cuda;
+      BpmOptions fo_b;
+      fo_b.backend = b;
+      std::vector<double> tf;
+      std::vector<double> ti;
+      for (int r = 0; r < repeat; ++r) {
+        tf.push_back(time_ms([&] { (void)bpm_forward(ri, illum, geom, fo_b); }));
+        BpmSolveOptions so;
+        so.backend = b;
+        so.iterations = 1;
+        const double t1 = time_ms([&] { (void)bpm_reconstruct(data, illum, geom, ri, so); });
+        so.iterations = 6;
+        const double t6 = time_ms([&] { (void)bpm_reconstruct(data, illum, geom, ri, so); });
+        ti.push_back((t6 - t1) / 5.0);
+      }
+      fwd[k] = median(tf);
+      iter[k] = median(ti);
+    }
+    const auto cell_text = [](double v) {
+      char buf[32];
+      if (v < 0) return std::string("-");
+      std::snprintf(buf, sizeof buf, v < 10 ? "%.2f" : "%.0f", v);
+      return std::string(buf);
+    };
+    std::printf("| forward, host in / host out | %s | %s |\n", cell_text(fwd[0]).c_str(),
+                cell_text(fwd[1]).c_str());
+    std::printf("| one inversion iteration | %s | %s |\n", cell_text(iter[0]).c_str(),
+                cell_text(iter[1]).c_str());
+    return 0;
+  }
 
   const auto ratio = forward_fields(cell, illum, holo_geom, holo_n, ScatteringModel::rytov);
   HologramOptions hopt;
