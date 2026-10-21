@@ -54,6 +54,7 @@ add_library(qoraholo
   src/cpu/fft.cpp
   src/cpu/field.cpp
   src/cpu/odt.cpp
+  src/cpu/tv.cpp
   src/cpu/unwrap.cpp
 )
 add_library(qoraholo::qoraholo ALIAS qoraholo)
@@ -75,6 +76,7 @@ if(QORAHOLO_CUDA)
     src/cuda/field.cu
     src/cuda/unwrap.cu
     src/cuda/odt.cu
+    src/cuda/tv.cu
     src/cuda/pipeline.cu
   )
   target_compile_definitions(qoraholo PUBLIC QORAHOLO_HAS_CUDA)
