@@ -38,6 +38,47 @@ double ball(double x) {
   return 3.0 * (std::sin(x) - x * std::cos(x)) / (x * x * x);
 }
 
+// Partial-wave coefficients c_l of the scattered wave of a homogeneous sphere, scalar Helmholtz
+// equation: outside u = sum i^l (2l+1) (j_l(kr) + c_l h_l(kr)) P_l, inside b_l j_l(mkr), with u
+// and du/dr continuous at r = R. x = kR, m = n_sphere / n_medium.
+std::vector<std::complex<double>> partial_waves(double x, double m) {
+  const int lmax = static_cast<int>(x + 4.0 * std::cbrt(x) + 10.0);
+  // j_l / j_{l-1} by downward recurrence (upward is unstable for l > x), started well above lmax.
+  const auto ratios = [&](double z) {
+    std::vector<double> rho(lmax + 1);
+    double r = 0;
+    for (int l = lmax + 60; l >= 1; --l) {
+      r = 1.0 / ((2.0 * l + 1.0) / z - r);
+      if (l <= lmax) rho[l] = r;
+    }
+    return rho;
+  };
+  const std::vector<double> rx = ratios(x);
+  const std::vector<double> rm = ratios(m * x);
+  std::vector<std::complex<double>> c(lmax + 1);
+  double j_prev = std::cos(x) / x;  // j_{-1}
+  double j = std::sin(x) / x;
+  double y_prev = std::sin(x) / x;  // y_{-1}
+  double y = -std::cos(x) / x;
+  for (int l = 0; l <= lmax; ++l) {
+    if (l > 0) {
+      const double y_next = (2.0 * l - 1.0) / x * y - y_prev;
+      y_prev = y;
+      y = y_next;
+      j_prev = j;
+      j = rx[l] * j;
+    }
+    const std::complex<double> h(j, y);
+    const std::complex<double> h_prev(j_prev, y_prev);
+    const double dj = j_prev - (l + 1.0) / x * j;
+    const std::complex<double> dh = h_prev - (l + 1.0) / x * h;
+    // j_l'(mx) / j_l(mx) = j_{l-1} / j_l - (l + 1) / (mx); for l = 0, j_{-1}/j_0 = cot(mx).
+    const double d = (l == 0 ? 1.0 / std::tan(m * x) : 1.0 / rm[l]) - (l + 1.0) / (m * x);
+    c[l] = (m * d * j - dj) / (dh - m * d * h);
+  }
+  return c;
+}
+
 }  // namespace
 
 Array3<float> render_phantom(std::span<const Sphere> spheres, const Geometry& geometry, int nz,
@@ -69,6 +110,15 @@ Array3<cfloat> forward_fields(std::span<const Sphere> spheres,
       double(geometry.na) * geometry.na / (double(geometry.wavelength) * geometry.wavelength);
   const double d = geometry.pixel;
   const double df = 1.0 / (n * d);
+
+  if (model == ScatteringModel::exact && spheres.size() != 1) {
+    throw std::invalid_argument("forward_fields: the exact model takes exactly one sphere");
+  }
+  // exact: scattering amplitude f(theta) = -i / k sum (2l+1) c_l P_l(cos theta).
+  const double km = k0 * geometry.n_medium;
+  const auto waves = model == ScatteringModel::exact
+                         ? partial_waves(km * spheres[0].radius, spheres[0].n / geometry.n_medium)
+                         : std::vector<std::complex<double>>{};
 
   // Each sphere contributes its potential step over the region it is painted on.
   std::vector<double> step(spheres.size());
@@ -102,13 +152,31 @@ Array3<cfloat> forward_fields(std::span<const Sphere> spheres,
           const double nuz = std::sqrt(fm2 - rho2);
           const double qz = nuz - fiz;
           const double q = 2.0 * kPi * std::sqrt(qz * qz + my * my + mx * mx);
+          // 4 pi times the scattering amplitude: U_s(nu) = i / (4 pi nu_z) * o, which is the
+          // Born relation with o = O_hat; the centre-origin DFT carries (-1)^k / d^2.
           std::complex<double> o = 0;
-          for (std::size_t i = 0; i < spheres.size(); ++i) {
-            const auto& s = spheres[i];
+          if (model == ScatteringModel::exact) {
+            const auto& s = spheres[0];
+            const double cos_t = (fy * fiy + fx * fix + nuz * fiz) / fm2;
+            std::complex<double> sum = 0;
+            double p_prev = 0;  // P_{l-1}
+            double p = 1;       // P_l
+            for (std::size_t l = 0; l < waves.size(); ++l) {
+              const double w = 2.0 * double(l) + 1.0;
+              sum += w * waves[l] * p;
+              const double p_next = (w * cos_t * p - double(l) * p_prev) / (double(l) + 1.0);
+              p_prev = p;
+              p = p_next;
+            }
             const double ph = -2.0 * kPi * (qz * s.z + my * s.y + mx * s.x);
-            o += step[i] * ball(q * s.radius) * std::polar(1.0, ph);
+            o = 4.0 * kPi * std::complex<double>(0.0, -1.0 / km) * sum * std::polar(1.0, ph);
+          } else {
+            for (std::size_t i = 0; i < spheres.size(); ++i) {
+              const auto& s = spheres[i];
+              const double ph = -2.0 * kPi * (qz * s.z + my * s.y + mx * s.x);
+              o += step[i] * ball(q * s.radius) * std::polar(1.0, ph);
+            }
           }
-          // Born: U_s(nu) = i / (4 pi nu_z) * O_hat; the centre-origin DFT carries (-1)^k / d^2.
           u = std::complex<double>(0.0, 1.0 / (4.0 * kPi * nuz)) * o *
               double(detail::parity(ky + kx)) / (d * d);
         }

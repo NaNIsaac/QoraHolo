@@ -20,15 +20,20 @@ struct Sphere {
   float n = 1.38f;
 };
 
-enum class ScatteringModel { born, rytov };
+// born: first Born. rytov: the first Born phase taken as a Rytov phase. exact: the scalar
+// Helmholtz equation solved exactly by partial waves (the scalar analogue of Mie theory),
+// multiple scattering included; one sphere only.
+enum class ScatteringModel { born, rytov, exact };
 
 // Refractive index sampled at voxel centres, (nz, n, n), centre-origin, voxel = geometry.pixel.
 [[nodiscard]] Array3<float> render_phantom(std::span<const Sphere> spheres,
                                            const Geometry& geometry, int nz, int n);
 
-// Field ratios u / u_in (n x n per illumination) from the analytic 3D spectrum of the spheres
-// placed on each Ewald cap, i.e. the same Fourier diffraction theorem as reconstruct(), but
-// evaluated at exact frequencies rather than on the voxel grid.
+// Field ratios u / u_in (n x n per illumination) at the plane z = 0, band-limited to the
+// detection NA. born / rytov: the analytic 3D spectrum of the spheres placed on each Ewald cap,
+// i.e. the same Fourier diffraction theorem as reconstruct(), evaluated at exact frequencies
+// rather than on the voxel grid. exact: the forward-scattered plane waves of the partial-wave
+// solution, refocused to z = 0 the same way.
 [[nodiscard]] Array3<cfloat> forward_fields(std::span<const Sphere> spheres,
                                             std::span<const Illumination> illuminations,
                                             const Geometry& geometry, int n,
