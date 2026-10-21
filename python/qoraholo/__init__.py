@@ -26,6 +26,8 @@ __all__ = [
     "Pipeline",
     "Sideband",
     "Sphere",
+    "bpm_forward",
+    "bpm_reconstruct",
     "circular_scan",
     "cuda_available",
     "extract_fields",
@@ -227,8 +229,72 @@ def render_phantom(spheres, geometry: Geometry, nz: int, n: int):
 
 
 def forward_fields(spheres, illuminations, geometry: Geometry, n: int, model: str = "rytov"):
-    """Field ratios u / u_in, (count, n, n), from the analytic spectrum on each Ewald cap."""
+    """Field ratios u / u_in at z = 0, (count, n, n), band-limited to the detection NA.
+
+    ``"born"`` and ``"rytov"`` place the analytic sphere spectrum on each Ewald cap; ``"exact"``
+    solves the scalar Helmholtz equation for one sphere by partial waves (multiple scattering
+    included).
+    """
     return _core.forward_fields(list(spheres), _illum(illuminations), geometry, n, model)
+
+
+def bpm_forward(
+    ri, illuminations, geometry: Geometry, obliquity: bool = True, backend: str = "cpu"
+):
+    """Refractive index (nz, n, n) to field ratios (count, n, n) by multi-slice beam propagation.
+
+    One slice per voxel: a thin phase screen, then angular-spectrum propagation in the medium.
+    The output is refocused to z = 0 and band-limited to the detection NA like
+    ``forward_fields``. ``obliquity`` weights the scattered part of each slice by the obliquity
+    of the scattered wave, which makes the weak-object limit the first Born approximation at
+    every illumination angle.
+    """
+    return _core.bpm_forward(
+        np.ascontiguousarray(ri, dtype=np.float32),
+        _illum(illuminations),
+        geometry,
+        obliquity,
+        backend,
+    )
+
+
+def bpm_reconstruct(
+    fields,
+    illuminations,
+    geometry: Geometry,
+    initial,
+    iterations: int = 20,
+    batch: int = 0,
+    step: float = 1.0,
+    tv_weight: float = 0.0,
+    tv_inner: int = 10,
+    obliquity: bool = True,
+    backend: str = "cpu",
+    return_loss: bool = False,
+):
+    """Field ratios (count, n, n) to refractive index by gradient descent on the BPM.
+
+    ``initial`` (nz, n, n) is the starting volume, e.g. a Rytov reconstruction. Each iteration
+    back-propagates the residual for the gradient, then applies n >= n_medium and, with
+    ``tv_weight > 0``, a TV proximal step. ``batch=0`` uses all illuminations per step with
+    FISTA momentum; otherwise one iteration is a pass over batches of that many illuminations.
+    ``step`` multiplies the automatic step 1 / L. With ``return_loss`` the data term of every
+    iteration is returned as well.
+    """
+    ri, loss = _core.bpm_reconstruct(
+        np.ascontiguousarray(fields, dtype=np.complex64),
+        _illum(illuminations),
+        geometry,
+        np.ascontiguousarray(initial, dtype=np.float32),
+        iterations,
+        batch,
+        step,
+        tv_weight,
+        tv_inner,
+        obliquity,
+        backend,
+    )
+    return (ri, np.asarray(loss)) if return_loss else ri
 
 
 def synthesize_holograms(

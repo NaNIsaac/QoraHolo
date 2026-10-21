@@ -83,3 +83,24 @@ def test_pipeline_matches_functions(backend):
     a, b = ri - GEOM.n_medium, ref - GEOM.n_medium
     assert np.linalg.norm(a - b) / np.linalg.norm(b) < 1e-4
     assert p.timings["total"] > 0
+
+
+def test_bpm_inverts_exact_bead():
+    bead = [qh.Sphere(z=0.0, y=0.0, x=0.0, radius=3.0, n=1.40)]
+    illum = qh.circular_scan(25, 0.9, GEOM)
+    data = qh.forward_fields(bead, illum, GEOM, 64, model="exact")
+    initial = qh.reconstruct(qh.rytov(data), illum, GEOM, iterations=10)
+    ri, loss = qh.bpm_reconstruct(data, illum, GEOM, initial, iterations=10, return_loss=True)
+    assert ri.shape == (64, 64, 64)
+    assert loss.shape == (10,) and loss[-1] < loss[0]
+    truth = qh.render_phantom(bead, GEOM, 64, 64)
+    assert np.sqrt(np.mean((ri - truth) ** 2)) < np.sqrt(np.mean((initial - truth) ** 2))
+
+
+@pytest.mark.skipif(not qh.cuda_available(), reason="no CUDA device")
+def test_bpm_cuda_matches_cpu():
+    illum = qh.circular_scan(5, 0.9, GEOM)
+    ri = qh.render_phantom(SPHERE, GEOM, 32, 64)
+    a = qh.bpm_forward(ri, illum, GEOM) - 1
+    b = qh.bpm_forward(ri, illum, GEOM, backend="cuda") - 1
+    assert np.linalg.norm(a - b) / np.linalg.norm(a) < 1e-4

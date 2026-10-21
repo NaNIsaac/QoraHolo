@@ -309,20 +309,72 @@ NB_MODULE(_core, m) {
       [](const std::vector<Sphere>& spheres,
          nb::ndarray<const float, nb::ndim<2>, nb::c_contig, nb::device::cpu> illuminations,
          const Geometry& geometry, int n, const std::string& model) {
-        if (model != "rytov" && model != "born") {
-          throw std::invalid_argument("model must be 'rytov' or 'born'");
+        ScatteringModel m{};
+        if (model == "rytov") {
+          m = ScatteringModel::rytov;
+        } else if (model == "born") {
+          m = ScatteringModel::born;
+        } else if (model == "exact") {
+          m = ScatteringModel::exact;
+        } else {
+          throw std::invalid_argument("model must be 'rytov', 'born' or 'exact'");
         }
         const auto il = to_illum(illuminations);
         Array3<cfloat> out;
         {
           nb::gil_scoped_release release;
-          out = forward_fields(spheres, il, geometry, n,
-                               model == "rytov" ? ScatteringModel::rytov : ScatteringModel::born);
+          out = forward_fields(spheres, il, geometry, n, m);
         }
         return to_numpy(std::move(out));
       },
       nb::arg("spheres"), nb::arg("illuminations"), nb::arg("geometry"), nb::arg("n"),
       nb::arg("model") = "rytov");
+
+  m.def(
+      "bpm_forward",
+      [](In3<float> ri,
+         nb::ndarray<const float, nb::ndim<2>, nb::c_contig, nb::device::cpu> illuminations,
+         const Geometry& geometry, bool obliquity, const std::string& backend) {
+        auto v = to_array(ri);
+        const auto il = to_illum(illuminations);
+        const BpmOptions opt{obliquity, parse_backend(backend)};
+        Array3<cfloat> out;
+        {
+          nb::gil_scoped_release release;
+          out = bpm_forward(v, il, geometry, opt);
+        }
+        return to_numpy(std::move(out));
+      },
+      nb::arg("ri"), nb::arg("illuminations"), nb::arg("geometry"), nb::arg("obliquity") = true,
+      nb::arg("backend") = "cpu");
+
+  m.def(
+      "bpm_reconstruct",
+      [](In3<cfloat> fields,
+         nb::ndarray<const float, nb::ndim<2>, nb::c_contig, nb::device::cpu> illuminations,
+         const Geometry& geometry, In3<float> initial, int iterations, int batch, float step,
+         float tv_weight, int tv_inner, bool obliquity, const std::string& backend) {
+        auto f = to_array(fields);
+        auto init = to_array(initial);
+        const auto il = to_illum(illuminations);
+        BpmSolveOptions opt;
+        opt.iterations = iterations;
+        opt.batch = batch;
+        opt.step = step;
+        opt.tv_weight = tv_weight;
+        opt.tv_inner = tv_inner;
+        opt.obliquity = obliquity;
+        opt.backend = parse_backend(backend);
+        BpmResult r;
+        {
+          nb::gil_scoped_release release;
+          r = bpm_reconstruct(f, il, geometry, init, opt);
+        }
+        return nb::make_tuple(to_numpy(std::move(r.ri)), r.loss);
+      },
+      nb::arg("fields"), nb::arg("illuminations"), nb::arg("geometry"), nb::arg("initial"),
+      nb::arg("iterations"), nb::arg("batch"), nb::arg("step"), nb::arg("tv_weight"),
+      nb::arg("tv_inner"), nb::arg("obliquity"), nb::arg("backend"));
 
   m.def(
       "synthesize_holograms",
