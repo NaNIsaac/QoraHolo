@@ -102,7 +102,6 @@ uv pip install dist/*.whl
 .venv/bin/python -c "import qoraholo"
 ```
 
-<!-- test windows -->
 ```powershell
 uv build --wheel
 uv venv
