@@ -82,6 +82,16 @@ about 1% of the GPU reconstruction, which the 3D FFTs of the missing-cone loop d
 results are identical to the printed precision; float summation order differs, so they are
 not bitwise equal in general.
 
+Nsight Compute at 256³ (49 illuminations): gather 68 µs, 17.4 MiB of DRAM traffic, 269 GB/s
+(41% of the DRAM peak), 47% achieved occupancy; scatter 64 µs, 17.8 MiB, 295 GB/s (45%),
+73% occupancy. Neither is bandwidth-bound: gather has one thread per lateral column (65536
+threads, less than one full wave on the 48 SMs) and each loops over the 49 illuminations, so it waits on
+dependent loads; scatter spreads the work over 49 times as many threads but pays for the
+atomics. For comparison the Gerchberg-Papoulis kernels are bandwidth-bound: the constraint
+`nonnegative_real` moves 108 MiB in 194 µs (582 GB/s, 88% of peak) and `restore_half` 175 MiB
+in 298 µs (615 GB/s, 93%), so the GP loop is limited by its 3D FFTs and by DRAM bandwidth, not
+by its kernels' code.
+
 ## Phase unwrapping on the GPU
 
 The DCT-II along an axis is a reorder kernel, a batched 1D C2C FFT, and a twiddle kernel
@@ -222,7 +232,11 @@ chunk size, one shared work area). Per slice: inverse FFT of S into w (out of pl
 still needed), a screen kernel that also stores w_k, a forward FFT, and the propagation kernel.
 The backward pass per slice is a split kernel, an inverse FFT, a gradient kernel with one
 thread per pixel that loops over the B illuminations (so the gradient needs no atomics), and a
-forward FFT. The stored envelopes take 8 n_z n² B bytes; B is chosen so that they fit in half
+forward FFT. Nsight Compute at 128³ (49 illuminations per chunk): the propagation kernel
+moves 21.4 MiB in 37.5 µs (600 GB/s, 91% of the DRAM peak), the screen kernel 6.2 MiB in
+13.2 µs (493 GB/s, 76%; it is short enough for launch and tail effects to show). The adjoint
+kernels were outside the profiled launch window and have no counters. The stored envelopes
+take 8 n_z n² B bytes; B is chosen so that they fit in half
 the free device memory, independently of the algorithmic `batch` (`Cuda.BpmChunkedGradient`
 checks that chunking does not change the result).
 

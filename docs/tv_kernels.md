@@ -6,8 +6,9 @@ FGP steps against 40 3D FFTs, so the FGP step sets the cost of the solver. This 
 how the step was made faster and what did not help. All times are cudaEvent intervals on the
 RTX 5070, measured with `qoraholo_bench --field N --tv 1` while holding the shared GPU
 benchmark lock, with no other compute process on the GPU (`nvidia-smi`, sampled every 5 s).
-Nsight Compute is not available on this machine (`ERR_NVGPUCTRPERM`), so there are no
-profiler counters; the bandwidth column is a model.
+Profiler counters from Nsight Compute 2026.3.1 at 256³ are in "Profiler counters" below; the
+"traffic model" columns are a byte count from the algorithm divided by the event time, kept as
+a cross-check.
 
 ## What one step does
 
@@ -37,7 +38,7 @@ neighbouring threads still need the old r; that costs three more volumes of memo
 variants do the same arithmetic in the same order (`tv_adjoint`, `tv_primal`, `tv_gradient`,
 `tv_dual_step` in `common.hpp`, or the same expressions on shared memory).
 
-## Result at 256³
+## Result at 256³ (cudaEvent)
 
 20 outer x 10 dual iterations on the README phantom. Per FGP step = (solve time with 10 dual
 steps - solve time with 0) / 200. Medians of 5 runs.
@@ -94,9 +95,47 @@ at 512³, so the
 plain fused kernel is the default. The tiled kernels stay in the code, selectable through
 the internal `TvKernel` enum, so the comparison above can be rerun.
 
-By the traffic model the fused kernel moves 13 n³ floats per step; at 256³ and 512³ that is
+## Profiler counters
+
+Nsight Compute, 256³, `qoraholo_bench --field 256 --tv 1` under the GPU lock, each kernel
+profiled on 4 to 6 launches after skipping the first ones; medians. DRAM bytes are
+`dram__bytes.sum` (the read / write split, `dram__bytes_read.sum` and `dram__bytes_write.sum`,
+reports n/a on this GPU). Bandwidth is bytes / `gpu__time_duration.sum`. A padded real volume
+at 256³ is 64.5 MiB.
+
+| kernel | time (µs) | DRAM (MiB) | volumes | GB/s | % of DRAM peak | L1 hit | L2 hit | achieved / theoretical occupancy | registers |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| separate: primal | 537 | 311 | 4.8 | 606 | 91.8% | 29.0% | 34.6% | 84.5% / 100% | 26 |
+| separate: dual | 1461 | 811 | 12.6 | 582 | 87.9% | 43.5% | 56.0% | 86.7% / 100% | 30 |
+| fused | 1543 | 821 | 12.7 | 558 | 84.3% | 47.3% | 68.2% | 70.8% / 83.3% | 48 |
+| fused, 16x8x4 tiles | 1583 | 825 | 12.8 | 547 | 82.7% | 5.1% | 64.8% | 96.5% / 100% | 40 |
+| fused, 32x8 marching | 1568 | 824 | 12.8 | 551 | 83.2% | 6.8% | 51.0% | 82.4% / 83.3% | 47 |
+
+What this shows:
+
+- The traffic model holds. The separate step moves 4.8 + 12.6 = 17.4 volumes (model 5 + 13
+  = 18), the fused step 12.7 (model 13). The small deficit is L2 keeping part of a volume
+  between kernels.
+- Neighbour reuse already hits the caches: the fused kernel reads r at the voxel and at three
+  lower neighbours and recomputes z at four points, yet moves no more than the 13 volumes it
+  must touch once. That was the hypothesis for why tiling cannot help, and the counters
+  confirm it: both tiled kernels move the same bytes (12.8 volumes) as the plain fused
+  kernel. Their L1 hit rate drops to 5-7% because the reuse moved into shared memory, which
+  the L1 counters do not include; DRAM traffic does not change.
+- All variants run at 83-92% of the DRAM peak. With no traffic left to remove, the time per
+  step follows the bytes: the fused step is cheaper than the separate pair because it moves
+  27% fewer bytes, not because it is faster per byte (558 against 582-606 GB/s).
+- Occupancy is not the limit: the fused kernel's 48 registers cap it at 5 blocks of 256
+  threads per SM (83% theoretical, 71% achieved), the cube-tiled one reaches 97%, and it is
+  not faster.
+
+The 512³ profile was not done. Nsight Compute's kernel replay saves and restores the device
+buffers in host memory, and the 512³ TV run (about 7 GiB of device buffers) ran the 32 GB
+host out of memory, so the run was stopped. The 512³ times above are cudaEvent intervals.
+
+The model cross-check: by the traffic model the fused kernel moves 13 n³ floats per step; at 256³ and 512³ that is
 539 and 554 GB/s, against 567 and 575 GB/s for the 18-volume separate version
-and 672 GB/s in the card's specification. That the fused step runs at nearly the same rate
-as the separate kernels suggests it is still limited by memory traffic; the remaining ways to
+and 672 GB/s in the card's specification. The profiler numbers above
+confirm that the step is limited by DRAM traffic at its compulsory minimum; the remaining ways to
 make it cheaper are to move fewer bytes, for example the dual in half
 precision or fewer dual steps per outer iteration, both of which change the result.

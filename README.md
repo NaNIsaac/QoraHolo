@@ -289,9 +289,11 @@ MSVC 19.44, CUDA 13.4, driver 610.88, one build with both backends. Milliseconds
 runs at 256³ and 3 at 512³. Both runs held an exclusive lock on the GPU (the machine is
 shared with another project's benchmarks), and `nvidia-smi`, sampled every 5 s, showed no
 other compute process. 512³ is CUDA only: the CPU solver runs at that size need several GiB
-of host memory. No profiler numbers: Nsight Compute needs GPU performance counter access,
-which is not enabled on this machine (`ERR_NVGPUCTRPERM`), so all times are cudaEvent
-intervals or host wall time.
+of host memory. Times are cudaEvent intervals or host wall time. Nsight Compute counters
+(DRAM bytes, cache hit rates, occupancy) for the TV, Ewald mapping, GP and BPM kernels at
+256³ are in [docs/tv_kernels.md](docs/tv_kernels.md) and
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); there is no 512³ profile, because the
+profiler's kernel replay ran the host out of memory at that size.
 
 **End to end**, sample holograms in, index out, 10 Gerchberg-Papoulis iterations:
 
@@ -373,8 +375,10 @@ of 10 gave 9.38e-4, 20 gave 7.99e-4.
 
 The FGP step of the TV solver is one fused kernel; against the earlier two-kernel version it
 takes 1.62 instead of 2.13 ms at 256³ and 12.6 instead of 16.8 ms at 512³, with the same
-result bit for bit. Shared-memory tiling was tried and did not help. Details and the
-measurements are in [docs/tv_kernels.md](docs/tv_kernels.md).
+result bit for bit. Shared-memory tiling was tried and did not help: Nsight Compute shows the fused kernel
+already moving the compulsory 13 volumes per step at 84% of the DRAM peak, and the tiled
+versions moving the same bytes. Details and the measurements are in
+[docs/tv_kernels.md](docs/tv_kernels.md).
 
 **Beam propagation**, 49 illuminations, medians of 3 runs (`qoraholo_bench --bpm 1`), ms:
 
