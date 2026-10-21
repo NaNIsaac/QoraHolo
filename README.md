@@ -173,10 +173,11 @@ data were made with the obliquity weight, so that row also carries a model misma
 construction; the bead row does not.
 
 ```python
-ry = qh.rytov(fields)                                       # field ratios u / u_background
-start = qh.reconstruct(ry, illum, geom, iterations=20)       # Rytov + GP
-ri, loss = qh.bpm_reconstruct(fields, illum, geom, start, iterations=30, backend="cuda",
-                              return_loss=True)
+ry = qh.rytov(fields)  # field ratios u / u_background
+start = qh.reconstruct(ry, illum, geom, iterations=20)  # Rytov + GP
+ri, loss = qh.bpm_reconstruct(
+    fields, illum, geom, start, iterations=30, backend="cuda", return_loss=True
+)
 ```
 
 ## Array conventions
