@@ -9,7 +9,7 @@ authors:
     affiliation: "Sogang University"
 license: MIT
 repository-code: "https://github.com/NaNIsaac/QoraHolo"
-abstract: "Off-axis field retrieval, least-squares phase unwrapping and Rytov optical diffraction tomography with Gerchberg-Papoulis missing-cone filling, on CPU and CUDA, with Python bindings."
+abstract: "Off-axis field retrieval, least-squares phase unwrapping and Rytov optical diffraction tomography with Gerchberg-Papoulis or FISTA total-variation missing-cone filling, and a beam propagation forward model and inversion for multiple scattering, on CPU and CUDA, with Python bindings."
 keywords:
   - "holotomography"
   - "optical diffraction tomography"

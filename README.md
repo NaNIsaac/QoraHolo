@@ -37,8 +37,8 @@ was picked from a sweep on this phantom, so the TV numbers are tuned to it. Scri
 
 ## Quick start
 
-Requires CMake 3.28+, a C++20 compiler (gcc 13+, MSVC 2022), and for the GPU backend the
-CUDA Toolkit 12.8 or newer.
+Requires CMake 3.28+, Ninja (the presets use it), a C++20 compiler (gcc 13+, MSVC 2022),
+and for the GPU backend the CUDA Toolkit 12.8 or newer.
 
 <!-- test unix -->
 ```bash
