@@ -44,3 +44,11 @@ jobs:
       - run: uv build --wheel
       - run: uv venv && uv pip install dist/*.whl pytest
       - run: .venv/bin/python -m pytest -q
+
+  locked:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.0
+      - run: uv sync --locked
+      - run: uv run --locked pytest -q
