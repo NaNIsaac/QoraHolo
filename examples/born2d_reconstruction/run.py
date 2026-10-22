@@ -40,6 +40,7 @@ N = 64  # grid side; the object is (N, N) in (z, x)
 COUNT = 31  # illuminations
 ITERATIONS = 300
 DELTA_N = 0.004  # index contrast of the larger disc; the smaller one has half
+ETA = 0.05  # relative noise for the noise gain of the nonlinear (positivity) reconstruction
 
 K0 = 2 * np.pi / WAVELENGTH
 
@@ -111,6 +112,28 @@ class RealSystem:
         stacked = np.concatenate([y.real.ravel(), y.imag.ravel()])
         return self._filter(stacked, filtered / self.w)
 
+    def projected(
+        self, y: np.ndarray, iterations: int = ITERATIONS, tv: float = 0.0, inner: int = 50
+    ) -> np.ndarray:
+        """Landweber with the prior V ≥ 0 (n ≥ n_m) and an optional total variation term.
+
+        Proximal gradient on ½‖S x − y‖² + λ TV(x) over x ≥ 0 from zero, step 1/w_max:
+        x ← prox(x + Sᵀ(y − S x) / w_max), the prox computed by ``tv_prox`` with ``inner``
+        iterations. ``tv`` is λ_rel in λ = λ_rel · w_max · s, s the maximum of the plain
+        Landweber result on the same data, so it is dimensionless and needs no truth. ``tv=0``
+        is projected Landweber.
+        """
+        stacked = np.concatenate([y.real.ravel(), y.imag.ravel()])
+        mu = tv * self.landweber(y).max()  # step · λ
+        x = np.zeros(N * N)
+        for _ in range(iterations):
+            b = x + self.step * (self.s.T @ (stacked - self.s @ x))
+            if mu:
+                x = tv_prox(b.reshape(N, N), mu, inner).ravel()
+            else:
+                x = np.maximum(b, 0)
+        return x.reshape(N, N)
+
     def information_limit(self, v: np.ndarray) -> np.ndarray:
         """Projection of a real object onto the row space of S.
 
@@ -118,6 +141,44 @@ class RealSystem:
         it misses the data do not carry (up to the CUTOFF on small singular values).
         """
         return self._filter(self.s @ v.ravel(), 1.0 / self.w)
+
+
+def gradient(v: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Forward differences along z and x, zero across the last row and column (Neumann)."""
+    gz, gx = np.zeros_like(v), np.zeros_like(v)
+    gz[:-1] = v[1:] - v[:-1]
+    gx[:, :-1] = v[:, 1:] - v[:, :-1]
+    return gz, gx
+
+
+def divergence(pz: np.ndarray, px: np.ndarray) -> np.ndarray:
+    """−gradientᵀ."""
+    d = np.zeros_like(pz)
+    d[:-1] += pz[:-1]
+    d[1:] -= pz[:-1]
+    d[:, :-1] += px[:, :-1]
+    d[:, 1:] -= px[:, :-1]
+    return d
+
+
+def tv_prox(b: np.ndarray, mu: float, iterations: int = 50) -> np.ndarray:
+    """argmin over x ≥ 0 of ½‖x − b‖² + mu · TV(x), isotropic TV.
+
+    Fast gradient projection on the dual (Beck and Teboulle, IEEE TIP 18, 2419 (2009)), which
+    handles the constraint exactly: x = P(b + mu · div p) for a dual field |p| ≤ 1.
+    """
+    pz = px = rz = rx = np.zeros_like(b)
+    t = 1.0
+    for _ in range(iterations):
+        gz, gx = gradient(np.maximum(b + mu * divergence(rz, rx), 0))
+        qz, qx = rz + gz / (8 * mu), rx + gx / (8 * mu)
+        norm = np.maximum(1.0, np.hypot(qz, qx))
+        qz, qx = qz / norm, qx / norm
+        t_next = (1 + np.sqrt(1 + 4 * t**2)) / 2
+        rz = qz + (t - 1) / t_next * (qz - pz)
+        rx = qx + (t - 1) / t_next * (qx - px)
+        pz, px, t = qz, qx, t_next
+    return np.maximum(b + mu * divergence(pz, px), 0)
 
 
 def landweber_iterative(m: Born2D, y: np.ndarray, step: float, iterations: int) -> np.ndarray:
@@ -211,6 +272,24 @@ def run() -> dict:
     noise *= np.sqrt(np.mean(np.abs(y) ** 2))
     out["noise_gain"] = float(np.linalg.norm(system.landweber(noise)) / np.linalg.norm(rec))
 
+    # the prior n ≥ n_m (QoraHolo#3); nonlinear, so its PSF is the response to a positive point
+    # and its noise gain is measured at a small noise level ETA
+    pos = system.projected(y)
+    dn_pos = to_delta_n(pos)
+    psf_pos = system.projected(m.forward(delta))
+    out["positivity"] = {
+        "delta_n": float(dn_pos[inside].mean()),
+        "psf_fwhm_x": fwhm(psf_pos[N // 2, :], PIXEL),
+        "psf_fwhm_z": fwhm(psf_pos[:, N // 2], PIXEL),
+        "disc_width_x": half_max_width(np.where(xx[N // 2] < 0.4, dn_pos[N // 2], 0), PIXEL),
+        "disc_width_z": half_max_width(dn_pos[:, column], PIXEL),
+        "delta_n_ring": float(dn_pos[ring].mean()),
+        "data_residual": float(np.linalg.norm(m.forward(pos) - y) / np.linalg.norm(y)),
+        "noise_gain": float(
+            np.linalg.norm(system.projected(y + ETA * noise) - pos) / (ETA * np.linalg.norm(pos))
+        ),
+    }
+
     model_error = {}
     for delta_n in (DELTA_N / 2, DELTA_N):
         ri = phantom(m, delta_n)
@@ -221,10 +300,56 @@ def run() -> dict:
             "relative_gap": float(np.linalg.norm(bpm - born) / np.linalg.norm(born)),
             "delta_n_from_bpm_data": float(to_delta_n(bpm)[inside].mean()),
             "delta_n_from_born_data": float(to_delta_n(born)[inside].mean()),
+            "delta_n_positivity_from_bpm_data": float(
+                to_delta_n(system.projected(bpm_fields(ri, m)))[inside].mean()
+            ),
         }
     out["model_error"] = model_error
     return out
 
 
+def prior_table(tvs=(0.0, 1e-4, 1e-3, 1e-2)) -> dict:
+    """Landweber against the positivity prior with and without TV (README table, about 5 min).
+
+    Born data, noiseless. For each method: δn in the larger disc's core after 300, 1500 and 3000
+    iterations (the last two are the convergence check), the smaller disc's core (truth
+    DELTA_N / 2), the PSF and the noise gain at 300 iterations.
+    """
+    m = model()
+    system = RealSystem(m)
+    zz, xx = grid(m)
+    inside, small = core(m), (xx - 1.6) ** 2 + (zz - 0.5) ** 2 < 0.3**2
+    y = m.forward(potential(phantom(m, DELTA_N), N_MEDIUM, WAVELENGTH))
+    delta = np.zeros((N, N))
+    delta[N // 2, N // 2] = 1.0
+    rng = np.random.default_rng(1)
+    noise = (rng.normal(size=y.shape) + 1j * rng.normal(size=y.shape)) / np.sqrt(2)
+    noise *= np.sqrt(np.mean(np.abs(y) ** 2))
+    methods = {"landweber": system.landweber}
+    methods |= {
+        f"positivity, tv {tv:g}": (lambda d, k=ITERATIONS, tv=tv: system.projected(d, k, tv))
+        for tv in tvs
+    }
+    table = {}
+    for name, f in methods.items():
+        rec = f(y)
+        psf = f(m.forward(delta))
+        table[name] = {
+            "delta_n": [
+                float(to_delta_n(f(y, k) if k != ITERATIONS else rec)[inside].mean())
+                for k in (ITERATIONS, 1500, 3000)
+            ],
+            "delta_n_small": float(to_delta_n(rec)[small].mean()),
+            "psf_fwhm_x": fwhm(psf[N // 2, :], PIXEL),
+            "psf_fwhm_z": fwhm(psf[:, N // 2], PIXEL),
+            "noise_gain": float(
+                np.linalg.norm(f(y + ETA * noise) - rec) / (ETA * np.linalg.norm(rec))
+            ),
+        }
+    return table
+
+
 if __name__ == "__main__":
-    print(json.dumps(run(), indent=2))
+    import sys
+
+    print(json.dumps(prior_table() if "--priors" in sys.argv else run(), indent=2))
