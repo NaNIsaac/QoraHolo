@@ -1,0 +1,16 @@
+{
+  "sidebar": [
+    {
+      "text": "Getting Started",
+      "items": [{ "text": "Overview", "link": "index.md" }]
+    },
+    {
+      "text": "Design",
+      "items": [{ "text": "Architecture", "link": "ARCHITECTURE.md" }]
+    },
+    {
+      "text": "Performance",
+      "items": [{ "text": "TV solver on the GPU", "link": "tv_kernels.md" }]
+    }
+  ]
+}
