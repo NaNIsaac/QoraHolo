@@ -200,6 +200,32 @@ ri, loss = qh.bpm_reconstruct(
 )
 ```
 
+## First Born operator in 2D
+
+`qoraholo.born2d.Born2D` is the first Born forward model for a 2D (x, z) object, written in
+NumPy as an explicit linear operator with its exact adjoint, for tests and small inverse
+problems. It is not used by the C++ reconstruction. The object is the scattering potential
+k0²(n² − n_m²) on a centre-origin (nz, n) grid. The output is the scattered field ratio
+u_s/u_in at z = 0, band-limited to the detection NA, the same convention as `bpm_forward`.
+Sums are evaluated at the exact Ewald-arc frequencies, with no interpolation onto a grid.
+
+```python
+from qoraholo.born2d import Born2D, potential
+
+# illuminations: fx of each plane wave, cycles/µm
+model = Born2D(0.532, n_medium=1.337, na=1.2, pixel=0.1, n=64, nz=64, illuminations=(-0.5, 0, 0.5))
+fields = model.forward(potential(ri, 1.337, 0.532))  # (3, 64)
+back = model.adjoint(fields)  # (64, 64)
+```
+
+The first Born approximation holds while the phase the object adds is small,
+|δn|·k0·L ≪ 1 (`born_phase`). `python/tests/test_born2d.py` checks three things:
+- the adjoint, to 1e-12;
+- a Gaussian object against its closed-form spectrum, to 1e-9;
+- a 2 µm cylinder against `bpm_forward` on the same cylinder extruded along y. The gap is
+  2.1 % at |δn|·k0·L = 0.047 and 4.2 % at 0.094, proportional to δn as expected of the
+  neglected next order.
+
 ## Array conventions
 
 | | |
