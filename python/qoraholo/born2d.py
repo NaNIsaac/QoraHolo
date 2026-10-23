@@ -97,6 +97,14 @@ class Born2D:
         """``_rows`` for every illumination, computed once (the model is immutable)."""
         return [self._rows(fx) for fx in self.illuminations]
 
+    def matrix(self) -> np.ndarray:
+        """``forward`` as an explicit (count · n, nz · n) matrix, for small problems."""
+        blocks = []
+        for ez, ex, transfer, inverse in self._tables:
+            spectrum = self.pixel**2 * (ez[:, :, None] * ex[:, None, :]).reshape(self.n, -1)
+            blocks.append(inverse @ (transfer[:, None] * spectrum))
+        return np.vstack(blocks)
+
     def forward(self, v) -> np.ndarray:
         """Potential (nz, n), µm⁻² -> scattered field ratios u_s / u_in at z = 0, (count, n)."""
         v = np.asarray(v)

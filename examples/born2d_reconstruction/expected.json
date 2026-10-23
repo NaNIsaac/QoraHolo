@@ -1,0 +1,94 @@
+{
+  "about": "Checked by python/tests/test_example_born2d_reconstruction.py. Lengths in micrometres, spatial frequencies in cycles per micrometre, delta_n in refractive-index units, gaps and residuals relative (L2).",
+  "truth": {
+    "kx_max": {
+      "value": 3.947,
+      "tol": 0.157,
+      "why": "(NA + NA_illumination) / wavelength, within one frequency bin 1 / (N pixel)"
+    },
+    "psf_fwhm_x": {
+      "value": 0.1528,
+      "tol": 0.0153,
+      "why": "0.603 / kx_max for a uniformly filled band (sinc), 10 %"
+    },
+    "psf_aspect": {
+      "value": 2.886,
+      "tol": 0.577,
+      "why": "missing cone: kx_max / max |Kz| of the coverage, 20 %"
+    },
+    "model_gap_scaling": {
+      "value": 2.0,
+      "tol": 0.2,
+      "why": "the Born model error is the next order, so doubling delta_n doubles it"
+    },
+    "disc_width_x": {
+      "value": 2.0,
+      "tol": 0.2,
+      "why": "lateral resolution (0.15 µm) is far below the 2 µm diameter, so the half-max width is close to the diameter, 10 %"
+    },
+    "delta_n": {
+      "value": 0.004,
+      "tol": 0.0002,
+      "known_failure": "QoraHolo#3"
+    }
+  },
+  "regression": {
+    "about": "What the example returns today (not the truth): a change here means the operator, the coverage or the reconstruction changed.",
+    "kz_min": {
+      "value": -1.3536,
+      "tol": 0.001
+    },
+    "kz_max": {
+      "value": 0.6545,
+      "tol": 0.001
+    },
+    "psf_fwhm_x": {
+      "value": 0.15109,
+      "tol": 0.0015
+    },
+    "psf_fwhm_z": {
+      "value": 0.50236,
+      "tol": 0.005
+    },
+    "delta_n_information_limit": {
+      "value": 0.0030548,
+      "tol": 6e-05
+    },
+    "delta_n_landweber": {
+      "value": 0.0025761,
+      "tol": 3e-05
+    },
+    "delta_n_from_bpm_data": {
+      "value": 0.0025688,
+      "tol": 3e-05
+    },
+    "data_residual": {
+      "value": 0.010311,
+      "tol": 0.0005
+    },
+    "noise_gain": {
+      "value": 1.4366,
+      "tol": 0.02
+    },
+    "model_gap_0.002": {
+      "value": 0.016461,
+      "tol": 0.0005
+    },
+    "model_gap_0.004": {
+      "value": 0.032937,
+      "tol": 0.001
+    },
+    "disc_width_x": {
+      "value": 1.8506,
+      "tol": 0.01
+    },
+    "disc_width_z": {
+      "value": 2.7363,
+      "tol": 0.02
+    },
+    "delta_n_ring": {
+      "value": 0.00032342,
+      "tol": 1e-05
+    }
+  }
+}

@@ -31,6 +31,13 @@ def test_adjoint_is_the_conjugate_transpose(model):
     assert abs(lhs - rhs) <= 1e-12 * abs(lhs)
 
 
+def test_matrix_is_forward(model):
+    v = np.random.default_rng(1).normal(size=(NZ, N))
+    np.testing.assert_allclose(
+        model.matrix() @ v.ravel(), model.forward(v).ravel(), rtol=1e-12, atol=1e-15
+    )
+
+
 def test_gaussian_matches_its_closed_form_spectrum(model):
     """V = V0 exp(−r²/2σ²) has V̂(K) = 2πσ² V0 exp(−2π²σ²|K|²); smooth, so pixels add no error."""
     sigma, delta_n = 0.4, 0.002
