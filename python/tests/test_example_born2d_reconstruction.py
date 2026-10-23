@@ -1,8 +1,9 @@
 """examples/born2d_reconstruction end to end: known 2D object -> Born or BPM data -> Landweber.
 
 Truth checks are physical expectations (coverage, resolution, missing-cone elongation, the order
-of the Born model error). The recovered index contrast is known to come out low (QoraHolo#3:
-missing cone and early stopping) and is a strict xfail, so a better reconstruction shows up.
+of the Born model error). Without a prior the recovered index contrast comes out low
+(QoraHolo#3: missing cone and early stopping); with the prior n >= n_m it is checked against the
+truth.
 The regression block pins today's output. Units: µm, cycles/µm, refractive-index units.
 """
 
@@ -73,9 +74,53 @@ def test_born_model_error_is_next_order(result):
         assert gap["relative_gap"] < gap["born_phase"]
 
 
-@pytest.mark.xfail(strict=True, reason="QoraHolo#3: missing cone and early stopping, no prior")
-def test_recovers_the_index_contrast(result):
-    _check("delta_n", result["delta_n_landweber"], EXPECTED["truth"]["delta_n"])
+def test_without_a_prior_the_index_stays_below_the_information_limit(result):
+    # QoraHolo#3: the missing cone is information the data do not carry
+    assert (
+        result["delta_n_landweber"]
+        < result["delta_n_information_limit"]
+        < EXPECTED["truth"]["delta_n"]["value"]
+    )
+
+
+def test_positivity_recovers_the_index_contrast(result):
+    _check("delta_n", result["positivity"]["delta_n"], EXPECTED["truth"]["delta_n"])
+
+
+def test_positivity_recovers_the_index_contrast_from_bpm_data(result):
+    # a different forward model than the one inverted, so not an inverse crime (still noiseless)
+    got = result["model_error"]["0.004"]["delta_n_positivity_from_bpm_data"]
+    _check("delta_n from BPM data", got, EXPECTED["truth"]["delta_n"])
+
+
+def test_positivity_shortens_the_psf(result):
+    pos = result["positivity"]
+    assert pos["psf_fwhm_x"] <= result["psf_fwhm_x"]
+    assert pos["psf_fwhm_z"] < result["psf_fwhm_z"]
+
+
+def test_tv_prox_is_the_constrained_minimiser():
+    rng = np.random.default_rng(0)
+    b = rng.normal(size=(16, 16)) + np.where(np.arange(16) < 8, 1.0, 0.0)
+    mu = 0.3
+
+    def objective(x):
+        gz, gx = example.gradient(x)
+        return 0.5 * np.sum((x - b) ** 2) + mu * np.sum(np.hypot(gz, gx))
+
+    x = example.tv_prox(b, mu, iterations=2000)
+    assert x.min() >= 0
+    best = objective(x)
+    for _ in range(50):
+        trial = np.maximum(x + 1e-3 * rng.normal(size=x.shape), 0)
+        assert objective(trial) >= best - 1e-9
+
+
+def test_divergence_is_minus_the_gradient_adjoint():
+    rng = np.random.default_rng(1)
+    v, pz, px = rng.normal(size=(3, 9, 7))
+    gz, gx = example.gradient(v)
+    assert np.sum(gz * pz + gx * px) == pytest.approx(-np.sum(v * example.divergence(pz, px)))
 
 
 def test_regression_snapshot(result):
@@ -96,6 +141,12 @@ def test_regression_snapshot(result):
         "noise_gain": result["noise_gain"],
         "model_gap_0.002": gaps["0.002"]["relative_gap"],
         "model_gap_0.004": gaps["0.004"]["relative_gap"],
+        "positivity_delta_n": result["positivity"]["delta_n"],
+        "positivity_delta_n_from_bpm_data": gaps["0.004"]["delta_n_positivity_from_bpm_data"],
+        "positivity_psf_fwhm_x": result["positivity"]["psf_fwhm_x"],
+        "positivity_psf_fwhm_z": result["positivity"]["psf_fwhm_z"],
+        "positivity_disc_width_z": result["positivity"]["disc_width_z"],
+        "positivity_noise_gain": result["positivity"]["noise_gain"],
     }
     for name, value in got.items():
         _check(name, value, reg[name])
