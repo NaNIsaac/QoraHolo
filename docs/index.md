@@ -83,7 +83,9 @@ opts = dict(
     output_size=N,
     backend=backend,
 )
-fields = qh.field_ratio(qh.extract_fields(holograms, **opts), qh.extract_fields(backgrounds, **opts))
+fields = qh.field_ratio(
+    qh.extract_fields(holograms, **opts), qh.extract_fields(backgrounds, **opts)
+)
 ri = qh.reconstruct(qh.rytov(fields, backend=backend), illum, geom, iterations=20, backend=backend)
 
 truth = qh.render_phantom(bead, geom, N, N)
