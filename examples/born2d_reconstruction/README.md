@@ -109,6 +109,38 @@ prints this table (about 5 min).
   data rms (Landweber is linear, so its value does not depend on the level). The PSF is the
   response to a positive point and depends on the object.
 
+### With noise, and with a region below n_m
+
+`noise.py` (about 6 min on an idle CPU) writes `noise.json`. Its setup:
+- BPM data, so the forward model differs from the one inverted.
+- White complex Gaussian noise of rms η times the data rms (0.0452), for η = 0.1, 0.3 and 1.0.
+  For weak scattering that is about 4.5, 13.5 and 45 mrad of phase per sample.
+- Ten noise seeds per level. All methods run 300 iterations.
+- Object B adds a 1 µm disc of δn = −0.002 (n < n_m) to the phantom.
+
+The pass/fail criteria were written down before the run. Mean ± sd over seeds of the 2 µm disc's
+core (truth 0.004):
+
+| object, η | Landweber | n ≥ n_m | n ≥ n_m, TV 1e-3 |
+|---|---|---|---|
+| phantom, 0.1 | 0.00257 ± 0.00002 | **0.00407 ± 0.00002** | 0.00406 ± 0.00002 |
+| phantom, 0.3 | 0.00257 ± 0.00005 | 0.00402 ± 0.00007 | 0.00402 ± 0.00006 |
+| phantom, 1.0 | 0.00258 ± 0.00015 | 0.00376 ± 0.00022 | 0.00382 ± 0.00021 |
+| with the negative disc, 0.1 | 0.00250 ± 0.00002 | **0.00400 ± 0.00002** | 0.00398 ± 0.00002 |
+| with the negative disc, 1.0 | 0.00251 ± 0.00015 | 0.00368 ± 0.00022 | 0.00376 ± 0.00021 |
+
+- **Positivity holds up.** It is within 5 % of the truth at η ≤ 0.3, with or without the
+  negative disc. At every noise level it beats Landweber in bias + sd and in map RMSE: at
+  η = 1.0, 0.00082 against 0.00138.
+- **At η = 1.0 it is −6 %**, outside the 5 % tolerance.
+- **TV does not help the core value.** It reduces the seed-to-seed sd of the core by only 10 % at
+  η = 0.3; the criterion set beforehand was 30 %, so this is recorded as failed. It does lower
+  the map RMSE (0.00082 → 0.00067 at η = 1.0).
+- **Small structure suffers first.** The 1 µm disc (truth 0.002) is 0.00201 at η = 0.1 but
+  0.00132 at η = 1.0. With the negative disc nearby it is 0.00158 already at η = 0.1.
+- **The negative disc is clipped to n_m by construction:** 0.00000 against a truth of −0.002.
+  Landweber gives −0.00055.
+
 ### Artifacts
 
 - **Axial elongation.** The 2 µm disc is 1.85 µm wide along x and 2.74 µm along z at half
@@ -134,9 +166,11 @@ produces a reconstruction 1.44 times the norm of the noiseless one, so the noise
 - **No prior.** Landweber without a prior is the baseline here, not a recommended
   reconstruction method.
 - **The positivity result is a best case.** The object is sparse and positive on a background of
-  exactly n_m, so n ≥ n_m acts almost like a known support. The data have no noise. A region
-  with n < n_m (a bubble, some organelles) breaks the prior, and how it behaves with noise
-  is not measured here.
+  exactly n_m, so n ≥ n_m acts almost like a known support. The noise and n < n_m cases are in
+  the section above. A negative region is clipped to n_m, and small positive structure near it,
+  or under strong noise, comes out low.
+- **Noise model.** Only white complex Gaussian noise on the field ratios. Phase offsets and
+  ramps per illumination, which real holograms carry, are not modelled.
 - **Cutoff dependence.** The information limit depends on where small singular values are
   cut. At 1e-5 of the largest it is 0.00305; at 1e-10 (computed with a full SVD) it is
   0.00315.
