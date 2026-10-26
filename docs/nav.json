@@ -6,7 +6,10 @@
     },
     {
       "text": "Design",
-      "items": [{ "text": "Architecture", "link": "ARCHITECTURE.md" }]
+      "items": [
+        { "text": "Architecture", "link": "ARCHITECTURE.md" },
+        { "text": "Cross-check of the sphere models", "link": "crosscheck.md" }
+      ]
     },
     {
       "text": "Performance",

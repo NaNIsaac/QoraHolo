@@ -118,6 +118,7 @@ The README is the full user guide:
 - [Multiple scattering: beam propagation](../README.md#multiple-scattering-beam-propagation): when Rytov and Born fail, `bpm_reconstruct`, and how it compares on a large bead and on stacked beads.
 - [First Born operator in 2D](../README.md#first-born-operator-in-2d): `qoraholo.born2d`, an explicit linear operator with its adjoint for small inverse problems.
 - [Array conventions](../README.md#array-conventions) and [Physics conventions](../README.md#physics-conventions): layout, units (cycles/µm, not rad/µm), the scattering potential, the Fourier diffraction theorem as used here, Rytov, gridding, the missing-cone solvers, BPM, the exact sphere, holograms and unwrapping.
+- [Cross-check of the sphere models](crosscheck.md): Born and Rytov against qpsphere, and the scalar exact sphere against vector Mie as a function of NA.
 - [Benchmark](../README.md#benchmark), [What this does not do](../README.md#what-this-does-not-do) and [References](../README.md#references).
 
 On this site:

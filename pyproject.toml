@@ -29,6 +29,11 @@ Issues = "https://github.com/NaNIsaac/QoraHolo/issues"
 Changelog = "https://github.com/NaNIsaac/QoraHolo/blob/main/CHANGELOG.md"
 
 [dependency-groups]
+check = [
+    "miepython>=3.3.0",
+    "qpsphere>=0.5.9",
+    "setuptools<81",
+]
 dev = ["pytest>=8"]
 examples = ["matplotlib>=3.9"]
 
@@ -68,6 +73,7 @@ archs = ["arm64"]
 
 [tool.pytest.ini_options]
 testpaths = ["python/tests"]
+markers = ["slow: cross-checks against other packages; need the check group"]
 
 [tool.ruff]
 line-length = 100

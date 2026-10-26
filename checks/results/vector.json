@@ -1,0 +1,162 @@
+{
+ "radius": 3.0,
+ "dn": 0.02,
+ "n": 512,
+ "pixel": 0.11,
+ "rows": [
+  {
+   "na": 0.2,
+   "exact_vs_vector": {
+    "field_rel": 0.0020557845165815537,
+    "phase_rmse": 0.00016533537884962167,
+    "phase_rmse_disk": 0.0012955410093827208,
+    "phase_rel_disk": 0.0009492760057054599,
+    "amplitude_rmse": 7.646793219813272e-05
+   },
+   "rytov_vs_vector": {
+    "field_rel": 0.012033160428763323,
+    "phase_rmse": 0.0010922044904597419,
+    "phase_rmse_disk": 0.008798791331970823,
+    "phase_rel_disk": 0.006447099265988304,
+    "amplitude_rmse": 0.000207009022860318
+   }
+  },
+  {
+   "na": 0.4,
+   "exact_vs_vector": {
+    "field_rel": 0.0037057440416303836,
+    "phase_rmse": 0.00030941611292971806,
+    "phase_rmse_disk": 0.0021429829931849088,
+    "phase_rel_disk": 0.0015615639982428954,
+    "amplitude_rmse": 0.00011826989714466859
+   },
+   "rytov_vs_vector": {
+    "field_rel": 0.01816022944047036,
+    "phase_rmse": 0.0015198536176986995,
+    "phase_rmse_disk": 0.012768177249637202,
+    "phase_rel_disk": 0.009304005668558777,
+    "amplitude_rmse": 0.0006477938805140375
+   }
+  },
+  {
+   "na": 0.6,
+   "exact_vs_vector": {
+    "field_rel": 0.005934155670490816,
+    "phase_rmse": 0.0005132095335585299,
+    "phase_rmse_disk": 0.0029709782042698315,
+    "phase_rel_disk": 0.0021093670914322806,
+    "amplitude_rmse": 0.00013661845800743276
+   },
+   "rytov_vs_vector": {
+    "field_rel": 0.023213633762449764,
+    "phase_rmse": 0.0018096626364608006,
+    "phase_rmse_disk": 0.014441930789215178,
+    "phase_rel_disk": 0.010253637505563594,
+    "amplitude_rmse": 0.0010601893941629434
+   }
+  },
+  {
+   "na": 0.8,
+   "exact_vs_vector": {
+    "field_rel": 0.008136795505486814,
+    "phase_rmse": 0.0006943010260995932,
+    "phase_rmse_disk": 0.0038377206521491808,
+    "phase_rel_disk": 0.0026775923858801303,
+    "amplitude_rmse": 0.00021395712842812005
+   },
+   "rytov_vs_vector": {
+    "field_rel": 0.028369552848507257,
+    "phase_rmse": 0.0021105600891868173,
+    "phase_rmse_disk": 0.013858759134334585,
+    "phase_rel_disk": 0.009669309285202897,
+    "amplitude_rmse": 0.0014402459694764242
+   }
+  },
+  {
+   "na": 0.9,
+   "exact_vs_vector": {
+    "field_rel": 0.009637102654553998,
+    "phase_rmse": 0.0008157620821598559,
+    "phase_rmse_disk": 0.0034556262996579194,
+    "phase_rel_disk": 0.0024477506550090043,
+    "amplitude_rmse": 0.0002703819976269859
+   },
+   "rytov_vs_vector": {
+    "field_rel": 0.030605354625354023,
+    "phase_rmse": 0.0022071314119406628,
+    "phase_rmse_disk": 0.012759008704404754,
+    "phase_rel_disk": 0.00903768787630883,
+    "amplitude_rmse": 0.0016462393823173922
+   }
+  },
+  {
+   "na": 1.0,
+   "exact_vs_vector": {
+    "field_rel": 0.011125055461021013,
+    "phase_rmse": 0.0009186303567217185,
+    "phase_rmse_disk": 0.003373520486564609,
+    "phase_rel_disk": 0.0024057917949762172,
+    "amplitude_rmse": 0.0003728732593060857
+   },
+   "rytov_vs_vector": {
+    "field_rel": 0.033206881841811864,
+    "phase_rmse": 0.002395031013505744,
+    "phase_rmse_disk": 0.01213506468703657,
+    "phase_rel_disk": 0.008653997855311108,
+    "amplitude_rmse": 0.0017828186319546017
+   }
+  },
+  {
+   "na": 1.1,
+   "exact_vs_vector": {
+    "field_rel": 0.0131764757779422,
+    "phase_rmse": 0.00107112151104291,
+    "phase_rmse_disk": 0.0029282311852325835,
+    "phase_rel_disk": 0.00207420446706035,
+    "amplitude_rmse": 0.0004950182403627462
+   },
+   "rytov_vs_vector": {
+    "field_rel": 0.03515082193942406,
+    "phase_rmse": 0.002533669759364337,
+    "phase_rmse_disk": 0.01235661908738671,
+    "phase_rel_disk": 0.008752776979521494,
+    "amplitude_rmse": 0.0018911749942391602
+   }
+  },
+  {
+   "na": 1.2,
+   "exact_vs_vector": {
+    "field_rel": 0.015564296600678694,
+    "phase_rmse": 0.0012301451614690519,
+    "phase_rmse_disk": 0.003170452858022901,
+    "phase_rel_disk": 0.0022448134620735977,
+    "amplitude_rmse": 0.0006637425923777163
+   },
+   "rytov_vs_vector": {
+    "field_rel": 0.03787450463908643,
+    "phase_rmse": 0.0027513108548747516,
+    "phase_rmse_disk": 0.012783955288110794,
+    "phase_rel_disk": 0.009051575978074607,
+    "amplitude_rmse": 0.0020133121513215223
+   }
+  },
+  {
+   "na": 1.337,
+   "exact_vs_vector": {
+    "field_rel": 0.025404170763515543,
+    "phase_rmse": 0.0016271532538136518,
+    "phase_rmse_disk": 0.00334078619919844,
+    "phase_rel_disk": 0.0023479324515347675,
+    "amplitude_rmse": 0.0016051673384217112
+   },
+   "rytov_vs_vector": {
+    "field_rel": 0.05631676550253078,
+    "phase_rmse": 0.004375657062337701,
+    "phase_rmse_disk": 0.01252244494824759,
+    "phase_rel_disk": 0.008800878928918758,
+    "amplitude_rmse": 0.0025633818019477075
+   }
+  }
+ ],
+ "seconds": 1.1
+}

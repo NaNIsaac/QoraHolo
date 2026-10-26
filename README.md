@@ -307,7 +307,9 @@ for one homogeneous sphere by partial waves (u and ∂u/∂r continuous at the s
 Huffman 1983 for the vector analogue). The forward-scattered plane waves are refocused to
 z = 0 through Û_s(ν) = i f(θ)/ν_z, the same relation that gives the Fourier diffraction
 theorem when f is the Born amplitude, so the exact and Born fields are directly comparable
-(they agree to 1.5% for a 3 µm sphere at Δn = 5e-4).
+(they agree to 1.5% for a 3 µm sphere at Δn = 5e-4). Born and Rytov match qpsphere to 1e-6 at
+the same period, and the scalar exact field is 1.6% from vector Mie at NA 1.2 for a 3 µm sphere;
+see [docs/crosscheck.md](docs/crosscheck.md).
 
 **Holograms.** The synthesiser writes |R + u|² with R = a·exp(−2πi ν_c·r), so the term u R*
 sits at ν_in + ν_c. `find_sideband` calls the peak in the half plane x > 0 the +1 order; flip

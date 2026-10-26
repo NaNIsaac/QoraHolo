@@ -1,0 +1,1267 @@
+{
+ "n": 512,
+ "pixel": 0.11,
+ "rows": [
+  {
+   "radius": 1.0,
+   "dn": 0.0005,
+   "centre_phase": 0.011810498697705988,
+   "rytov_vs_rytov": {
+    "field_rel": 7.272652956523161e-05,
+    "phase_rmse": 1.9278211968109958e-08,
+    "phase_rmse_disk": 6.080432535933068e-07,
+    "phase_rel_disk": 5.11062595377158e-05,
+    "amplitude_rmse": 1.8842281171719e-09
+   },
+   "rytov_vs_exact": {
+    "field_rel": 0.0013912559404386396,
+    "phase_rmse": 2.0797287306928178e-07,
+    "phase_rmse_disk": 2.4754799559553635e-06,
+    "phase_rel_disk": 0.00020805930135822415,
+    "amplitude_rmse": 3.066885958948218e-07
+   },
+   "exact_vs_vector": {
+    "0.6": {
+     "field_rel": 0.01964053667047288,
+     "phase_rmse": 5.0964031224162524e-06,
+     "phase_rmse_disk": 0.00011304928321406332,
+     "phase_rel_disk": 0.010633866221057253,
+     "amplitude_rmse": 1.869002445722486e-08
+    },
+    "0.9": {
+     "field_rel": 0.02774572184621601,
+     "phase_rmse": 7.2270953242450096e-06,
+     "phase_rmse_disk": 0.00013971671268092124,
+     "phase_rel_disk": 0.011307410738692243,
+     "amplitude_rmse": 2.3373517900262307e-08
+    },
+    "1.2": {
+     "field_rel": 0.043788591447678105,
+     "phase_rmse": 1.1430119130177415e-05,
+     "phase_rmse_disk": 0.00014069469579905197,
+     "phase_rel_disk": 0.01175873720738121,
+     "amplitude_rmse": 4.957528407484073e-08
+    }
+   }
+  },
+  {
+   "radius": 1.0,
+   "dn": 0.002,
+   "centre_phase": 0.04724199479082395,
+   "rytov_vs_rytov": {
+    "field_rel": 1.5569129775947333e-05,
+    "phase_rmse": 1.3960359532797195e-08,
+    "phase_rmse_disk": 4.330912786408472e-07,
+    "phase_rel_disk": 9.09526928814558e-06,
+    "amplitude_rmse": 8.9726419392867e-09
+   },
+   "rytov_vs_exact": {
+    "field_rel": 0.005550733208762898,
+    "phase_rmse": 3.3120454880583467e-06,
+    "phase_rmse_disk": 3.929096003286366e-05,
+    "phase_rel_disk": 0.0008249769401632382,
+    "amplitude_rmse": 4.903721351777278e-06
+   },
+   "exact_vs_vector": {
+    "0.6": {
+     "field_rel": 0.01956831046759336,
+     "phase_rmse": 2.0319171929575587e-05,
+     "phase_rmse_disk": 0.00045194404303285963,
+     "phase_rel_disk": 0.01063089699186901,
+     "amplitude_rmse": 2.8222078441562475e-07
+    },
+    "0.9": {
+     "field_rel": 0.027669299911489986,
+     "phase_rmse": 2.8841928856295953e-05,
+     "phase_rmse_disk": 0.0005576436676843303,
+     "phase_rel_disk": 0.01128360698151119,
+     "amplitude_rmse": 3.4502553767386e-07
+    },
+    "1.2": {
+     "field_rel": 0.043746027522182956,
+     "phase_rmse": 4.5693989590210155e-05,
+     "phase_rmse_disk": 0.0005657129257323922,
+     "phase_rel_disk": 0.011816521292744535,
+     "amplitude_rmse": 7.673361079090587e-07
+    }
+   }
+  },
+  {
+   "radius": 1.0,
+   "dn": 0.005,
+   "centre_phase": 0.11810498697705989,
+   "rytov_vs_rytov": {
+    "field_rel": 6.446482111208178e-06,
+    "phase_rmse": 8.883382349909076e-09,
+    "phase_rmse_disk": 8.44348574729998e-08,
+    "phase_rel_disk": 7.084860201558675e-07,
+    "amplitude_rmse": 1.4719230856222968e-08
+   },
+   "rytov_vs_exact": {
+    "field_rel": 0.013940265379488172,
+    "phase_rmse": 2.0742821324035132e-05,
+    "phase_rmse_disk": 0.0002455070395943472,
+    "phase_rel_disk": 0.0020588917068893355,
+    "amplitude_rmse": 3.087241202967565e-05
+   },
+   "exact_vs_vector": {
+    "0.6": {
+     "field_rel": 0.01944361453100306,
+     "phase_rmse": 5.048592760679051e-05,
+     "phase_rmse_disk": 0.0011298098268680157,
+     "phase_rel_disk": 0.010634091008460864,
+     "amplitude_rmse": 1.7599192366245178e-06
+    },
+    "0.9": {
+     "field_rel": 0.027535820009084916,
+     "phase_rmse": 7.178677412980063e-05,
+     "phase_rmse_disk": 0.0013894420814496398,
+     "phase_rel_disk": 0.01124881462097213,
+     "amplitude_rmse": 2.143421446316175e-06
+    },
+    "1.2": {
+     "field_rel": 0.04367437704284213,
+     "phase_rmse": 0.00011405003955127058,
+     "phase_rmse_disk": 0.0014302954747536655,
+     "phase_rel_disk": 0.011943785502918743,
+     "amplitude_rmse": 4.777556177118159e-06
+    }
+   }
+  },
+  {
+   "radius": 1.0,
+   "dn": 0.01,
+   "centre_phase": 0.23620997395411977,
+   "rytov_vs_rytov": {
+    "field_rel": 4.4893735556571405e-06,
+    "phase_rmse": 1.7811122455335798e-08,
+    "phase_rmse_disk": 1.6949968325153042e-07,
+    "phase_rel_disk": 7.098042705465749e-07,
+    "amplitude_rmse": 1.603102565564739e-08
+   },
+   "rytov_vs_exact": {
+    "field_rel": 0.028070008181273393,
+    "phase_rmse": 8.358889914379619e-05,
+    "phase_rmse_disk": 0.0009820502684512336,
+    "phase_rel_disk": 0.004108367822180191,
+    "amplitude_rmse": 0.0001244925086565542
+   },
+   "exact_vs_vector": {
+    "0.6": {
+     "field_rel": 0.01922129483215065,
+     "phase_rmse": 9.967477961125833e-05,
+     "phase_rmse_disk": 0.002249090276823057,
+     "phase_rel_disk": 0.010583830396357118,
+     "amplitude_rmse": 6.995986871169292e-06
+    },
+    "0.9": {
+     "field_rel": 0.02731063120848873,
+     "phase_rmse": 0.00014228983593364824,
+     "phase_rmse_disk": 0.0027558540410311705,
+     "phase_rel_disk": 0.011163668661960063,
+     "amplitude_rmse": 8.487601833648501e-06
+    },
+    "1.2": {
+     "field_rel": 0.04354901212010599,
+     "phase_rmse": 0.00022694413002532617,
+     "phase_rmse_disk": 0.0029056312380608892,
+     "phase_rel_disk": 0.01212267138240305,
+     "amplitude_rmse": 1.895810385125242e-05
+    }
+   }
+  },
+  {
+   "radius": 1.0,
+   "dn": 0.02,
+   "centre_phase": 0.47241994790823955,
+   "rytov_vs_rytov": {
+    "field_rel": 3.697868090022924e-06,
+    "phase_rmse": 3.575065652402091e-08,
+    "phase_rmse_disk": 3.4014410516165136e-07,
+    "phase_rel_disk": 7.095574925006242e-07,
+    "amplitude_rmse": 1.666363927924534e-08
+   },
+   "rytov_vs_exact": {
+    "field_rel": 0.05677978850835671,
+    "phase_rmse": 0.0003452257317633239,
+    "phase_rmse_disk": 0.003929955230163338,
+    "phase_rel_disk": 0.008185954944963094,
+    "amplitude_rmse": 0.0004986317932635563
+   },
+   "exact_vs_vector": {
+    "0.6": {
+     "field_rel": 0.01882055414030033,
+     "phase_rmse": 0.00019330729061921653,
+     "phase_rmse_disk": 0.004426536798232275,
+     "phase_rel_disk": 0.010388653721908345,
+     "amplitude_rmse": 2.7484019555214174e-05
+    },
+    "0.9": {
+     "field_rel": 0.026930203064011754,
+     "phase_rmse": 0.00027868795844113533,
+     "phase_rmse_disk": 0.0054097153495730995,
+     "phase_rel_disk": 0.010983826646969907,
+     "amplitude_rmse": 3.316856636353253e-05
+    },
+    "1.2": {
+     "field_rel": 0.04333956981229621,
+     "phase_rmse": 0.0004460984425374128,
+     "phase_rmse_disk": 0.005969828451832757,
+     "phase_rel_disk": 0.012442387746275447,
+     "amplitude_rmse": 7.418012361889135e-05
+    }
+   }
+  },
+  {
+   "radius": 1.0,
+   "dn": 0.05,
+   "centre_phase": 1.181049869770599,
+   "rytov_vs_rytov": {
+    "field_rel": 3.5321543448408367e-06,
+    "phase_rmse": 9.05863819937365e-08,
+    "phase_rmse_disk": 8.839624585421265e-07,
+    "phase_rel_disk": 7.294725298055958e-07,
+    "amplitude_rmse": 1.7018143932569345e-08
+   },
+   "rytov_vs_exact": {
+    "field_rel": 0.14475358575757374,
+    "phase_rmse": 0.00253900687728255,
+    "phase_rmse_disk": 0.024642165209591334,
+    "phase_rel_disk": 0.02037218473920297,
+    "amplitude_rmse": 0.0028093086441064023
+   },
+   "exact_vs_vector": {
+    "0.6": {
+     "field_rel": 0.017971050616391714,
+     "phase_rmse": 0.00042613832718785716,
+     "phase_rmse_disk": 0.010093147801758502,
+     "phase_rel_disk": 0.009214185132668813,
+     "amplitude_rmse": 0.00015548454439559396
+    },
+    "0.9": {
+     "field_rel": 0.02635149224121755,
+     "phase_rmse": 0.0006422838852170658,
+     "phase_rmse_disk": 0.012728091676628757,
+     "phase_rel_disk": 0.01047513108973305,
+     "amplitude_rmse": 0.0001897113417669095
+    },
+    "1.2": {
+     "field_rel": 0.043083012726556534,
+     "phase_rmse": 0.0010111762896916978,
+     "phase_rmse_disk": 0.015662914472531764,
+     "phase_rel_disk": 0.013092043571758123,
+     "amplitude_rmse": 0.00041535374681297635
+    }
+   }
+  },
+  {
+   "radius": 2.0,
+   "dn": 0.0005,
+   "centre_phase": 0.023620997395411975,
+   "rytov_vs_rytov": {
+    "field_rel": 7.262878690181676e-05,
+    "phase_rmse": 7.651312410442898e-08,
+    "phase_rmse_disk": 1.2069621824111736e-06,
+    "phase_rel_disk": 5.164419682184879e-05,
+    "amplitude_rmse": 4.328884758338655e-09
+   },
+   "rytov_vs_exact": {
+    "field_rel": 0.0015305961615603718,
+    "phase_rmse": 9.98287418796535e-07,
+    "phase_rmse_disk": 5.60035707275835e-06,
+    "phase_rel_disk": 0.00023973740991956055,
+    "amplitude_rmse": 1.2695146823295881e-06
+   },
+   "exact_vs_vector": {
+    "0.6": {
+     "field_rel": 0.008801599365875443,
+     "phase_rmse": 9.218279094154004e-06,
+     "phase_rmse_disk": 9.137253947741045e-05,
+     "phase_rel_disk": 0.0040905999892227735,
+     "amplitude_rmse": 5.4872889455835326e-08
+    },
+    "0.9": {
+     "field_rel": 0.014457527201922062,
+     "phase_rmse": 1.5163094792919657e-05,
+     "phase_rmse_disk": 0.00010824342604728079,
+     "phase_rel_disk": 0.004500455517641067,
+     "amplitude_rmse": 8.838801384804051e-08
+    },
+    "1.2": {
+     "field_rel": 0.020798288458939548,
+     "phase_rmse": 2.1821665112600368e-05,
+     "phase_rmse_disk": 8.813128295793062e-05,
+     "phase_rel_disk": 0.003782843619096298,
+     "amplitude_rmse": 1.8474899295833803e-07
+    }
+   }
+  },
+  {
+   "radius": 2.0,
+   "dn": 0.002,
+   "centre_phase": 0.0944839895816479,
+   "rytov_vs_rytov": {
+    "field_rel": 1.3397874451891598e-05,
+    "phase_rmse": 5.474965900283066e-08,
+    "phase_rmse_disk": 8.61356695964435e-07,
+    "phase_rel_disk": 9.208892450947547e-06,
+    "amplitude_rmse": 1.4221887559311626e-08
+   },
+   "rytov_vs_exact": {
+    "field_rel": 0.006138354403742343,
+    "phase_rmse": 1.6117534321473163e-05,
+    "phase_rmse_disk": 8.909154817370373e-05,
+    "phase_rel_disk": 0.0009540658948380345,
+    "amplitude_rmse": 2.0295854248983733e-05
+   },
+   "exact_vs_vector": {
+    "0.6": {
+     "field_rel": 0.008757813161767644,
+     "phase_rmse": 3.6691610106825424e-05,
+     "phase_rmse_disk": 0.0003636861077585679,
+     "phase_rel_disk": 0.004069319562536287,
+     "amplitude_rmse": 8.677710492859827e-07
+    },
+    "0.9": {
+     "field_rel": 0.014425165515975247,
+     "phase_rmse": 6.0519344330646835e-05,
+     "phase_rmse_disk": 0.00043531025960653907,
+     "phase_rel_disk": 0.004523014197723924,
+     "amplitude_rmse": 1.4066428754325636e-06
+    },
+    "1.2": {
+     "field_rel": 0.020809105278332657,
+     "phase_rmse": 8.731249430821583e-05,
+     "phase_rmse_disk": 0.0003522706297577638,
+     "phase_rel_disk": 0.0037797558163010668,
+     "amplitude_rmse": 2.943838256838462e-06
+    }
+   }
+  },
+  {
+   "radius": 2.0,
+   "dn": 0.005,
+   "centre_phase": 0.23620997395411977,
+   "rytov_vs_rytov": {
+    "field_rel": 2.280575160267544e-06,
+    "phase_rmse": 1.780172002214636e-08,
+    "phase_rmse_disk": 1.679127558557139e-07,
+    "phase_rel_disk": 7.172679791003332e-07,
+    "amplitude_rmse": 1.6197290696195132e-08
+   },
+   "rytov_vs_exact": {
+    "field_rel": 0.01543706398986097,
+    "phase_rmse": 0.00010317080485218814,
+    "phase_rmse_disk": 0.0005577927001035718,
+    "phase_rel_disk": 0.0023921139692726448,
+    "amplitude_rmse": 0.00012610568709353945
+   },
+   "exact_vs_vector": {
+    "0.6": {
+     "field_rel": 0.008688915797471327,
+     "phase_rmse": 9.084444569505191e-05,
+     "phase_rmse_disk": 0.0009018566770341733,
+     "phase_rel_disk": 0.004032737917928132,
+     "amplitude_rmse": 5.359260442366041e-06
+    },
+    "0.9": {
+     "field_rel": 0.014376430492865837,
+     "phase_rmse": 0.0001505048185329796,
+     "phase_rmse_disk": 0.001101861422321678,
+     "phase_rel_disk": 0.0045771538115468614,
+     "amplitude_rmse": 8.761265558107605e-06
+    },
+    "1.2": {
+     "field_rel": 0.02085717653214466,
+     "phase_rmse": 0.0002180552913363108,
+     "phase_rmse_disk": 0.0008815081842389952,
+     "phase_rel_disk": 0.0037823470202177547,
+     "amplitude_rmse": 1.8277202619916628e-05
+    }
+   }
+  },
+  {
+   "radius": 2.0,
+   "dn": 0.01,
+   "centre_phase": 0.47241994790823955,
+   "rytov_vs_rytov": {
+    "field_rel": 1.873028145131904e-06,
+    "phase_rmse": 3.5704023200352664e-08,
+    "phase_rmse_disk": 3.3739423224050466e-07,
+    "phase_rel_disk": 7.192760738842116e-07,
+    "amplitude_rmse": 1.6717148362774137e-08
+   },
+   "rytov_vs_exact": {
+    "field_rel": 0.03110798051253267,
+    "phase_rmse": 0.0004313112758629234,
+    "phase_rmse_disk": 0.0022387568937238247,
+    "phase_rel_disk": 0.004808587058655121,
+    "amplitude_rmse": 0.0004928117643330377
+   },
+   "exact_vs_vector": {
+    "0.6": {
+     "field_rel": 0.008578790962814399,
+     "phase_rmse": 0.00017786667291236878,
+     "phase_rmse_disk": 0.0017632016287956718,
+     "phase_rel_disk": 0.00393210821630318,
+     "amplitude_rmse": 2.0904201226774472e-05
+    },
+    "0.9": {
+     "field_rel": 0.014306307767407177,
+     "phase_rmse": 0.0002968875131748143,
+     "phase_rmse_disk": 0.002235017346042845,
+     "phase_rel_disk": 0.0046419250835349505,
+     "amplitude_rmse": 3.468445132726798e-05
+    },
+    "1.2": {
+     "field_rel": 0.020987003397369926,
+     "phase_rmse": 0.0004327920348308119,
+     "phase_rmse_disk": 0.0017514187525953261,
+     "phase_rel_disk": 0.003755175737861115,
+     "amplitude_rmse": 7.213135407323558e-05
+    }
+   }
+  },
+  {
+   "radius": 2.0,
+   "dn": 0.02,
+   "centre_phase": 0.9448398958164791,
+   "rytov_vs_rytov": {
+    "field_rel": 1.7729547952359377e-06,
+    "phase_rmse": 7.153407811954265e-08,
+    "phase_rmse_disk": 6.730036256532638e-07,
+    "phase_rel_disk": 7.147107072066614e-07,
+    "amplitude_rmse": 1.6976485348019628e-08
+   },
+   "rytov_vs_exact": {
+    "field_rel": 0.06267361786693959,
+    "phase_rmse": 0.0018715974693270599,
+    "phase_rmse_disk": 0.0090291323837425,
+    "phase_rel_disk": 0.00971706519664052,
+    "amplitude_rmse": 0.0018049381056699954
+   },
+   "exact_vs_vector": {
+    "0.6": {
+     "field_rel": 0.008443741326735473,
+     "phase_rmse": 0.00033763929489601514,
+     "phase_rmse_disk": 0.003334511672001052,
+     "phase_rel_disk": 0.0036860177493515953,
+     "amplitude_rmse": 7.827462448161177e-05
+    },
+    "0.9": {
+     "field_rel": 0.014257747624379563,
+     "phase_rmse": 0.0005693587380798585,
+     "phase_rmse_disk": 0.0045514456941674756,
+     "phase_rel_disk": 0.004740381662486046,
+     "amplitude_rmse": 0.00013380094438264178
+    },
+    "1.2": {
+     "field_rel": 0.02147144717642851,
+     "phase_rmse": 0.0008368038034925141,
+     "phase_rmse_disk": 0.0034450329603926194,
+     "phase_rel_disk": 0.0036870992672751574,
+     "amplitude_rmse": 0.0002791681927798778
+    }
+   }
+  },
+  {
+   "radius": 2.0,
+   "dn": 0.05,
+   "centre_phase": 2.362099739541198,
+   "rytov_vs_rytov": {
+    "field_rel": 2.002168480652951e-06,
+    "phase_rmse": 1.822924776979012e-07,
+    "phase_rmse_disk": 1.7410906899437662e-06,
+    "phase_rel_disk": 7.314501902628834e-07,
+    "amplitude_rmse": 1.7698192267924547e-08
+   },
+   "rytov_vs_exact": {
+    "field_rel": 0.15323854560851077,
+    "phase_rmse": 0.011086561720456495,
+    "phase_rmse_disk": 0.05845546238326984,
+    "phase_rel_disk": 0.025086719438463415,
+    "amplitude_rmse": 0.008731983686232478
+   },
+   "exact_vs_vector": {
+    "0.6": {
+     "field_rel": 0.008768928475679246,
+     "phase_rmse": 0.0007050989929262209,
+     "phase_rmse_disk": 0.007357160343884948,
+     "phase_rel_disk": 0.0031125116038847383,
+     "amplitude_rmse": 0.00037088250789207405
+    },
+    "0.9": {
+     "field_rel": 0.01496424541818783,
+     "phase_rmse": 0.0011746481300120614,
+     "phase_rmse_disk": 0.011629194012926104,
+     "phase_rel_disk": 0.00496786099877021,
+     "amplitude_rmse": 0.0006701082840691409
+    },
+    "1.2": {
+     "field_rel": 0.024770819132060303,
+     "phase_rmse": 0.0016558116041643898,
+     "phase_rmse_disk": 0.008724424384666573,
+     "phase_rel_disk": 0.0037201531502562917,
+     "amplitude_rmse": 0.0015255713656883608
+    }
+   }
+  },
+  {
+   "radius": 3.0,
+   "dn": 0.0005,
+   "centre_phase": 0.035431496093117965,
+   "rytov_vs_rytov": {
+    "field_rel": 7.260221212966298e-05,
+    "phase_rmse": 1.7188583434333278e-07,
+    "phase_rmse_disk": 1.817724878627935e-06,
+    "phase_rel_disk": 5.08241835978722e-05,
+    "amplitude_rmse": 7.14224593150446e-09
+   },
+   "rytov_vs_exact": {
+    "field_rel": 0.0015152229268732065,
+    "phase_rmse": 2.3832652849977485e-06,
+    "phase_rmse_disk": 8.805081912146002e-06,
+    "phase_rel_disk": 0.00024620701840442905,
+    "amplitude_rmse": 2.6852010631898767e-06
+   },
+   "exact_vs_vector": {
+    "0.6": {
+     "field_rel": 0.005972359215208918,
+     "phase_rmse": 1.4103702014457305e-05,
+     "phase_rmse_disk": 7.547082106856147e-05,
+     "phase_rel_disk": 0.002144805755923518,
+     "amplitude_rmse": 9.16476987226083e-08
+    },
+    "0.9": {
+     "field_rel": 0.009316514408858006,
+     "phase_rmse": 2.2012809105170875e-05,
+     "phase_rmse_disk": 8.285703776655412e-05,
+     "phase_rel_disk": 0.0023563403901422824,
+     "amplitude_rmse": 1.7781707707518124e-07
+    },
+    "1.2": {
+     "field_rel": 0.013984786895896346,
+     "phase_rmse": 3.3048147632994276e-05,
+     "phase_rmse_disk": 7.011399169766016e-05,
+     "phase_rel_disk": 0.0019773116449860813,
+     "amplitude_rmse": 4.246021023710426e-07
+    }
+   }
+  },
+  {
+   "radius": 3.0,
+   "dn": 0.002,
+   "centre_phase": 0.14172598437247186,
+   "rytov_vs_rytov": {
+    "field_rel": 1.3046550675978595e-05,
+    "phase_rmse": 1.2268678051332427e-07,
+    "phase_rmse_disk": 1.2969011907972462e-06,
+    "phase_rel_disk": 9.060364102097196e-06,
+    "amplitude_rmse": 1.5503239329842888e-08
+   },
+   "rytov_vs_exact": {
+    "field_rel": 0.006071169700113643,
+    "phase_rmse": 3.8622152438767146e-05,
+    "phase_rmse_disk": 0.0001403888784792497,
+    "phase_rel_disk": 0.0009809537504603207,
+    "amplitude_rmse": 4.265953041983446e-05
+   },
+   "exact_vs_vector": {
+    "0.6": {
+     "field_rel": 0.005948047871221742,
+     "phase_rmse": 5.6166922252971654e-05,
+     "phase_rmse_disk": 0.0003015095728078306,
+     "phase_rel_disk": 0.0021410353270112812,
+     "amplitude_rmse": 1.4588675858902036e-06
+    },
+    "0.9": {
+     "field_rel": 0.009309940551730614,
+     "phase_rmse": 8.794068726426029e-05,
+     "phase_rmse_disk": 0.0003318042480498302,
+     "phase_rel_disk": 0.0023578955871949724,
+     "amplitude_rmse": 2.837231157352262e-06
+    },
+    "1.2": {
+     "field_rel": 0.014049028960730466,
+     "phase_rmse": 0.0001326383005553244,
+     "phase_rmse_disk": 0.0002811036007056301,
+     "phase_rel_disk": 0.0019827991592495544,
+     "amplitude_rmse": 6.812005217580847e-06
+    }
+   }
+  },
+  {
+   "radius": 3.0,
+   "dn": 0.005,
+   "centre_phase": 0.35431496093117965,
+   "rytov_vs_rytov": {
+    "field_rel": 1.390202488013688e-06,
+    "phase_rmse": 2.841823118455144e-08,
+    "phase_rmse_disk": 2.5376038052590303e-07,
+    "phase_rel_disk": 7.083305373381816e-07,
+    "amplitude_rmse": 1.6544438298064717e-08
+   },
+   "rytov_vs_exact": {
+    "field_rel": 0.015220683875664767,
+    "phase_rmse": 0.00024793905120597097,
+    "phase_rmse_disk": 0.0008812663165036371,
+    "phase_rel_disk": 0.002461399967852742,
+    "amplitude_rmse": 0.0002610753564756269
+   },
+   "exact_vs_vector": {
+    "0.6": {
+     "field_rel": 0.005917912477725683,
+     "phase_rmse": 0.00013916030699184318,
+     "phase_rmse_disk": 0.0007556980985045164,
+     "phase_rel_disk": 0.0021446415758765527,
+     "amplitude_rmse": 9.055315470583393e-06
+    },
+    "0.9": {
+     "field_rel": 0.009318178784101457,
+     "phase_rmse": 0.00021891152451543528,
+     "phase_rmse_disk": 0.0008359805362574486,
+     "phase_rel_disk": 0.0023740827908390917,
+     "amplitude_rmse": 1.76693981147032e-05
+    },
+    "1.2": {
+     "field_rel": 0.014211966101860206,
+     "phase_rmse": 0.0003324732308229037,
+     "phase_rmse_disk": 0.0007136921242568024,
+     "phase_rel_disk": 0.0020154778816954422,
+     "amplitude_rmse": 4.27312385641218e-05
+    }
+   }
+  },
+  {
+   "radius": 3.0,
+   "dn": 0.01,
+   "centre_phase": 0.7086299218623593,
+   "rytov_vs_rytov": {
+    "field_rel": 1.266204456657055e-06,
+    "phase_rmse": 5.6941543329945536e-08,
+    "phase_rmse_disk": 5.084624561140449e-07,
+    "phase_rel_disk": 7.083228399823727e-07,
+    "amplitude_rmse": 1.6859338153366926e-08
+   },
+   "rytov_vs_exact": {
+    "field_rel": 0.030445224601507993,
+    "phase_rmse": 0.0010275765546018647,
+    "phase_rmse_disk": 0.003554285480470647,
+    "phase_rel_disk": 0.004961609832684132,
+    "amplitude_rmse": 0.0009917539619659058
+   },
+   "exact_vs_vector": {
+    "0.6": {
+     "field_rel": 0.005884655223478167,
+     "phase_rmse": 0.0002723157301072666,
+     "phase_rmse_disk": 0.0015039117695801777,
+     "phase_rel_disk": 0.002132381616419794,
+     "amplitude_rmse": 3.567746830197314e-05
+    },
+    "0.9": {
+     "field_rel": 0.009367303858189145,
+     "phase_rmse": 0.0004311906249113025,
+     "phase_rmse_disk": 0.0016861390664544083,
+     "phase_rel_disk": 0.002391044366642166,
+     "amplitude_rmse": 6.997931584701331e-05
+    },
+    "1.2": {
+     "field_rel": 0.014561378450688098,
+     "phase_rmse": 0.0006587513357674031,
+     "phase_rmse_disk": 0.0014678232433558524,
+     "phase_rel_disk": 0.0020753973137883817,
+     "amplitude_rmse": 0.0001708119689446823
+    }
+   }
+  },
+  {
+   "radius": 3.0,
+   "dn": 0.02,
+   "centre_phase": 1.4172598437247186,
+   "rytov_vs_rytov": {
+    "field_rel": 1.2805681479614447e-06,
+    "phase_rmse": 1.1426471819950157e-07,
+    "phase_rmse_disk": 1.020090158593226e-06,
+    "phase_rel_disk": 7.078900974144797e-07,
+    "amplitude_rmse": 1.7081612530640174e-08
+   },
+   "rytov_vs_exact": {
+    "field_rel": 0.06001175581510669,
+    "phase_rmse": 0.00413628006672829,
+    "phase_rmse_disk": 0.014492686782327258,
+    "phase_rel_disk": 0.010133319321548704,
+    "amplitude_rmse": 0.0035013040963573295
+   },
+   "exact_vs_vector": {
+    "0.6": {
+     "field_rel": 0.005934155670490816,
+     "phase_rmse": 0.0005132095335585299,
+     "phase_rmse_disk": 0.0029709782042698315,
+     "phase_rel_disk": 0.0021093670914322806,
+     "amplitude_rmse": 0.00013661845800743276
+    },
+    "0.9": {
+     "field_rel": 0.009637102654553998,
+     "phase_rmse": 0.0008157620821598559,
+     "phase_rmse_disk": 0.0034556262996579194,
+     "phase_rel_disk": 0.0024477506550090043,
+     "amplitude_rmse": 0.0002703819976269859
+    },
+    "1.2": {
+     "field_rel": 0.015564296600678694,
+     "phase_rmse": 0.0012301451614690519,
+     "phase_rmse_disk": 0.003170452858022901,
+     "phase_rel_disk": 0.0022448134620735977,
+     "amplitude_rmse": 0.0006637425923777163
+    }
+   }
+  },
+  {
+   "radius": 3.0,
+   "dn": 0.05,
+   "centre_phase": 3.5431496093117967,
+   "rytov_vs_rytov": {
+    "field_rel": 1.7495507697242115e-06,
+    "phase_rmse": 2.90563459460828e-07,
+    "phase_rmse_disk": 2.5992786623922683e-06,
+    "phase_rel_disk": 9.843906495269696e-07,
+    "amplitude_rmse": 2.127483123213769e-08
+   },
+   "rytov_vs_exact": {
+    "field_rel": 0.14358429950421667,
+    "phase_rmse": 0.018984214635701963,
+    "phase_rmse_disk": 0.0971926331572169,
+    "phase_rel_disk": 0.03532127209664092,
+    "amplitude_rmse": 0.015258597837270902
+   },
+   "exact_vs_vector": {
+    "0.6": {
+     "field_rel": 0.007247234885149846,
+     "phase_rmse": 0.0010198557146301268,
+     "phase_rmse_disk": 0.007525589582804994,
+     "phase_rel_disk": 0.002683807038225127,
+     "amplitude_rmse": 0.0006634433630626208
+    },
+    "0.9": {
+     "field_rel": 0.012178194223939143,
+     "phase_rmse": 0.0015428718352330224,
+     "phase_rmse_disk": 0.009575829973234407,
+     "phase_rel_disk": 0.0034398613604886383,
+     "amplitude_rmse": 0.001328462583352401
+    },
+    "1.2": {
+     "field_rel": 0.02134680596674617,
+     "phase_rmse": 0.0019219882524331349,
+     "phase_rmse_disk": 0.009258302416532704,
+     "phase_rel_disk": 0.0034009131318748155,
+     "amplitude_rmse": 0.0030309476505247677
+    }
+   }
+  },
+  {
+   "radius": 4.0,
+   "dn": 0.0005,
+   "centre_phase": 0.04724199479082395,
+   "rytov_vs_rytov": {
+    "field_rel": 7.258523306151408e-05,
+    "phase_rmse": 3.053826636208292e-07,
+    "phase_rmse_disk": 2.4247334394891206e-06,
+    "phase_rel_disk": 5.178466412058909e-05,
+    "amplitude_rmse": 1.004104181891584e-08
+   },
+   "rytov_vs_exact": {
+    "field_rel": 0.0015202430262352016,
+    "phase_rmse": 4.3802774715010025e-06,
+    "phase_rmse_disk": 1.2322924192732566e-05,
+    "phase_rel_disk": 0.00026327078744079293,
+    "amplitude_rmse": 4.6652186034100915e-06
+   },
+   "exact_vs_vector": {
+    "0.6": {
+     "field_rel": 0.004554895458571157,
+     "phase_rmse": 1.9136187714699085e-05,
+     "phase_rmse_disk": 7.93204153469815e-05,
+     "phase_rel_disk": 0.0016446193515776886,
+     "amplitude_rmse": 1.8057785753917186e-07
+    },
+    "0.9": {
+     "field_rel": 0.00702128304365487,
+     "phase_rmse": 2.9505708345687562e-05,
+     "phase_rmse_disk": 7.917880148371973e-05,
+     "phase_rel_disk": 0.0017009212979517672,
+     "amplitude_rmse": 3.477931107447297e-07
+    },
+    "1.2": {
+     "field_rel": 0.010598315804829398,
+     "phase_rmse": 4.453887305188408e-05,
+     "phase_rmse_disk": 6.435001918274676e-05,
+     "phase_rel_disk": 0.0013563735532495663,
+     "amplitude_rmse": 8.048665113313557e-07
+    }
+   }
+  },
+  {
+   "radius": 4.0,
+   "dn": 0.002,
+   "centre_phase": 0.1889679791632958,
+   "rytov_vs_rytov": {
+    "field_rel": 1.2974240789937637e-05,
+    "phase_rmse": 2.1779849016211947e-07,
+    "phase_rmse_disk": 1.7293915858754956e-06,
+    "phase_rel_disk": 9.228412639031887e-06,
+    "amplitude_rmse": 1.5927153797653484e-08
+   },
+   "rytov_vs_exact": {
+    "field_rel": 0.00609385271917803,
+    "phase_rmse": 7.115423308020819e-05,
+    "phase_rmse_disk": 0.00019692792094727174,
+    "phase_rel_disk": 0.0010521447185375715,
+    "amplitude_rmse": 7.387610167026412e-05
+   },
+   "exact_vs_vector": {
+    "0.6": {
+     "field_rel": 0.004531288538793774,
+     "phase_rmse": 7.606055236090731e-05,
+     "phase_rmse_disk": 0.0003176781246873312,
+     "phase_rel_disk": 0.0016464034930385755,
+     "amplitude_rmse": 2.8868431097175437e-06
+    },
+    "0.9": {
+     "field_rel": 0.007012625090645155,
+     "phase_rmse": 0.00011768843650086622,
+     "phase_rmse_disk": 0.0003180790447128667,
+     "phase_rel_disk": 0.0017082525187011248,
+     "amplitude_rmse": 5.529941466733926e-06
+    },
+    "1.2": {
+     "field_rel": 0.010648752790409345,
+     "phase_rmse": 0.00017849124117903225,
+     "phase_rmse_disk": 0.00026198289507685493,
+     "phase_rel_disk": 0.0013800299638473243,
+     "amplitude_rmse": 1.2877886442868897e-05
+    }
+   }
+  },
+  {
+   "radius": 4.0,
+   "dn": 0.005,
+   "centre_phase": 0.47241994790823955,
+   "rytov_vs_rytov": {
+    "field_rel": 1.1130110172287398e-06,
+    "phase_rmse": 4.355530503711223e-08,
+    "phase_rmse_disk": 3.35185615371881e-07,
+    "phase_rel_disk": 7.146483953925329e-07,
+    "amplitude_rmse": 1.669015997141135e-08
+   },
+   "rytov_vs_exact": {
+    "field_rel": 0.015275072279113186,
+    "phase_rmse": 0.0004570133224282509,
+    "phase_rmse_disk": 0.0012406771292306786,
+    "phase_rel_disk": 0.002652232678568147,
+    "amplitude_rmse": 0.00044830717281303873
+   },
+   "exact_vs_vector": {
+    "0.6": {
+     "field_rel": 0.00450379361765564,
+     "phase_rmse": 0.00018738585305018128,
+     "phase_rmse_disk": 0.0007969639836407171,
+     "phase_rel_disk": 0.001653516561527637,
+     "amplitude_rmse": 1.7944707490749416e-05
+    },
+    "0.9": {
+     "field_rel": 0.007020349313677564,
+     "phase_rmse": 0.0002913461693735598,
+     "phase_rmse_disk": 0.0008014343199949254,
+     "phase_rel_disk": 0.0017208753043950129,
+     "amplitude_rmse": 3.4053816352518476e-05
+    },
+    "1.2": {
+     "field_rel": 0.01078974882563182,
+     "phase_rmse": 0.0004441101105823335,
+     "phase_rmse_disk": 0.0006801939485150073,
+     "phase_rel_disk": 0.0014324130011633483,
+     "amplitude_rmse": 8.009563787324844e-05
+    }
+   }
+  },
+  {
+   "radius": 4.0,
+   "dn": 0.01,
+   "centre_phase": 0.9448398958164791,
+   "rytov_vs_rytov": {
+    "field_rel": 1.0882054937085684e-06,
+    "phase_rmse": 8.80518040223579e-08,
+    "phase_rmse_disk": 6.779362601416218e-07,
+    "phase_rel_disk": 7.213667494800291e-07,
+    "amplitude_rmse": 1.701445587662989e-08
+   },
+   "rytov_vs_exact": {
+    "field_rel": 0.030473139321517205,
+    "phase_rmse": 0.0018686567195095138,
+    "phase_rmse_disk": 0.005032217304743808,
+    "phase_rel_disk": 0.005376483828031295,
+    "amplitude_rmse": 0.0016787869849728665
+   },
+   "exact_vs_vector": {
+    "0.6": {
+     "field_rel": 0.00448627229900096,
+     "phase_rmse": 0.0003613239127962933,
+     "phase_rmse_disk": 0.0015715626375306445,
+     "phase_rel_disk": 0.0016379615101856817,
+     "amplitude_rmse": 6.985642593484244e-05
+    },
+    "0.9": {
+     "field_rel": 0.007086454242375783,
+     "phase_rmse": 0.0005651133732170716,
+     "phase_rmse_disk": 0.0015881015397742587,
+     "phase_rel_disk": 0.0017016228782344926,
+     "amplitude_rmse": 0.00013152974694931714
+    },
+    "1.2": {
+     "field_rel": 0.011131596238878,
+     "phase_rmse": 0.0008591462829849702,
+     "phase_rmse_disk": 0.0014088036807598982,
+     "phase_rel_disk": 0.001482826560990808,
+     "amplitude_rmse": 0.00031329162114704037
+    }
+   }
+  },
+  {
+   "radius": 4.0,
+   "dn": 0.02,
+   "centre_phase": 1.8896797916329582,
+   "rytov_vs_rytov": {
+    "field_rel": 1.1658473776865858e-06,
+    "phase_rmse": 1.7776642215500248e-07,
+    "phase_rmse_disk": 1.369023489394133e-06,
+    "phase_rel_disk": 7.256598273087412e-07,
+    "amplitude_rmse": 1.8217082264741865e-08
+   },
+   "rytov_vs_exact": {
+    "field_rel": 0.05947067690379907,
+    "phase_rmse": 0.006989131624877876,
+    "phase_rmse_disk": 0.020693278067889807,
+    "phase_rel_disk": 0.011013550710340766,
+    "amplitude_rmse": 0.0058778365046990855
+   },
+   "exact_vs_vector": {
+    "0.6": {
+     "field_rel": 0.004606172004514068,
+     "phase_rmse": 0.0006540130688203649,
+     "phase_rmse_disk": 0.0029964104362482143,
+     "phase_rel_disk": 0.0015896481719672,
+     "amplitude_rmse": 0.00024846110547557424
+    },
+    "0.9": {
+     "field_rel": 0.00746789796006273,
+     "phase_rmse": 0.0010231266428368058,
+     "phase_rmse_disk": 0.003057690480481912,
+     "phase_rel_disk": 0.0016263244920445463,
+     "amplitude_rmse": 0.00047660905426369875
+    },
+    "1.2": {
+     "field_rel": 0.012296986326012858,
+     "phase_rmse": 0.0014847775750878444,
+     "phase_rmse_disk": 0.0028475765625528286,
+     "phase_rel_disk": 0.0015002436711380775,
+     "amplitude_rmse": 0.0011477656906280001
+    }
+   }
+  },
+  {
+   "radius": 4.0,
+   "dn": 0.05,
+   "centre_phase": 4.724199479082396,
+   "rytov_vs_rytov": {
+    "field_rel": 2.051971953494436e-06,
+    "phase_rmse": 4.478708183239028e-07,
+    "phase_rmse_disk": 3.4490178042395796e-06,
+    "phase_rel_disk": 2.2778045763788885e-06,
+    "amplitude_rmse": 3.010499356059601e-08
+   },
+   "rytov_vs_exact": {
+    "field_rel": 0.17095608913199462,
+    "phase_rmse": 0.031755014925440785,
+    "phase_rmse_disk": 0.14025209659342927,
+    "phase_rel_disk": 0.09018113477678329,
+    "amplitude_rmse": 0.022258217014792324
+   },
+   "exact_vs_vector": {
+    "0.6": {
+     "field_rel": 0.00689069440590758,
+     "phase_rmse": 0.001235589121237648,
+     "phase_rmse_disk": 0.007606202247607525,
+     "phase_rel_disk": 0.004532544879897401,
+     "amplitude_rmse": 0.0009411419447165676
+    },
+    "0.9": {
+     "field_rel": 0.011841345716669624,
+     "phase_rmse": 0.0017068551520168483,
+     "phase_rmse_disk": 0.00763752390090393,
+     "phase_rel_disk": 0.005027041912888707,
+     "amplitude_rmse": 0.0020450887748865165
+    },
+    "1.2": {
+     "field_rel": 0.022424965814383652,
+     "phase_rmse": 0.0023048939846891728,
+     "phase_rmse_disk": 0.007155651735763488,
+     "phase_rel_disk": 0.004595285110297172,
+     "amplitude_rmse": 0.004449927097774771
+    }
+   }
+  },
+  {
+   "radius": 6.0,
+   "dn": 0.0005,
+   "centre_phase": 0.07086299218623593,
+   "rytov_vs_rytov": {
+    "field_rel": 7.256321418729124e-05,
+    "phase_rmse": 6.867506888304959e-07,
+    "phase_rmse_disk": 3.6303652920430063e-06,
+    "phase_rel_disk": 5.157675669549637e-05,
+    "amplitude_rmse": 1.2996521291004121e-08
+   },
+   "rytov_vs_exact": {
+    "field_rel": 0.0015740622979680896,
+    "phase_rmse": 1.090639739155561e-05,
+    "phase_rmse_disk": 2.0888252809173285e-05,
+    "phase_rel_disk": 0.0002968216604985688,
+    "amplitude_rmse": 1.0151106782708035e-05
+   },
+   "exact_vs_vector": {
+    "0.6": {
+     "field_rel": 0.0029622401619279906,
+     "phase_rmse": 2.8013337981463964e-05,
+     "phase_rmse_disk": 6.647604046367541e-05,
+     "phase_rel_disk": 0.0009330836506468168,
+     "amplitude_rmse": 3.158570962311566e-07
+    },
+    "0.9": {
+     "field_rel": 0.004654668901616138,
+     "phase_rmse": 4.402040778100328e-05,
+     "phase_rmse_disk": 5.4062763392117564e-05,
+     "phase_rel_disk": 0.0007584670122073794,
+     "amplitude_rmse": 7.638915159960564e-07
+    },
+    "1.2": {
+     "field_rel": 0.0069822275899377164,
+     "phase_rmse": 6.602232611789777e-05,
+     "phase_rmse_disk": 5.207319183938425e-05,
+     "phase_rel_disk": 0.0007339777184211262,
+     "amplitude_rmse": 1.8078285905599633e-06
+    }
+   }
+  },
+  {
+   "radius": 6.0,
+   "dn": 0.002,
+   "centre_phase": 0.2834519687449437,
+   "rytov_vs_rytov": {
+    "field_rel": 1.2978233539477186e-05,
+    "phase_rmse": 4.903775272820889e-07,
+    "phase_rmse_disk": 2.5916267969330014e-06,
+    "phase_rel_disk": 9.199678831239778e-06,
+    "amplitude_rmse": 1.6306878045150343e-08
+   },
+   "rytov_vs_exact": {
+    "field_rel": 0.006308470017074744,
+    "phase_rmse": 0.00017602824164236183,
+    "phase_rmse_disk": 0.00033506162832875393,
+    "phase_rel_disk": 0.0011901182207277525,
+    "amplitude_rmse": 0.00016091461806384637
+   },
+   "exact_vs_vector": {
+    "0.6": {
+     "field_rel": 0.0029514769438432954,
+     "phase_rmse": 0.00011134274188142685,
+     "phase_rmse_disk": 0.00026534352946876676,
+     "phase_rel_disk": 0.0009316518257235952,
+     "amplitude_rmse": 5.01410919665979e-06
+    },
+    "0.9": {
+     "field_rel": 0.004669564908453505,
+     "phase_rmse": 0.00017592734927577067,
+     "phase_rmse_disk": 0.00021526757516003605,
+     "phase_rel_disk": 0.0007553668064485398,
+     "amplitude_rmse": 1.2161452406136178e-05
+    },
+    "1.2": {
+     "field_rel": 0.00703819729631446,
+     "phase_rmse": 0.00026429215788124433,
+     "phase_rmse_disk": 0.0002074132753209576,
+     "phase_rel_disk": 0.0007312382071274011,
+     "amplitude_rmse": 2.9001135657206475e-05
+    }
+   }
+  },
+  {
+   "radius": 6.0,
+   "dn": 0.005,
+   "centre_phase": 0.7086299218623593,
+   "rytov_vs_rytov": {
+    "field_rel": 1.0756582218554555e-06,
+    "phase_rmse": 9.916986984864598e-08,
+    "phase_rmse_disk": 5.020935130541111e-07,
+    "phase_rel_disk": 7.1212822856532e-07,
+    "amplitude_rmse": 1.6830776839980367e-08
+   },
+   "rytov_vs_exact": {
+    "field_rel": 0.015762627978615773,
+    "phase_rmse": 0.0010970537273407497,
+    "phase_rmse_disk": 0.002119919789085686,
+    "phase_rel_disk": 0.0030093629596381344,
+    "amplitude_rmse": 0.0009847419319498473
+   },
+   "exact_vs_vector": {
+    "0.6": {
+     "field_rel": 0.0029553116261670266,
+     "phase_rmse": 0.000273965536858081,
+     "phase_rmse_disk": 0.0006662193544749845,
+     "phase_rel_disk": 0.0009366601106450233,
+     "amplitude_rmse": 3.079232687983276e-05
+    },
+    "0.9": {
+     "field_rel": 0.004736885258296663,
+     "phase_rmse": 0.00043538569927657647,
+     "phase_rmse_disk": 0.0005387206301075358,
+     "phase_rel_disk": 0.0007569520491083114,
+     "amplitude_rmse": 7.498187077346515e-05
+    },
+    "1.2": {
+     "field_rel": 0.007220673329221123,
+     "phase_rmse": 0.000649764139655137,
+     "phase_rmse_disk": 0.0005277514968598686,
+     "phase_rel_disk": 0.0007449775933999647,
+     "amplitude_rmse": 0.00018076139305971695
+    }
+   }
+  },
+  {
+   "radius": 6.0,
+   "dn": 0.01,
+   "centre_phase": 1.4172598437247186,
+   "rytov_vs_rytov": {
+    "field_rel": 1.1149901667743842e-06,
+    "phase_rmse": 1.9943810067093248e-07,
+    "phase_rmse_disk": 1.0099550748305793e-06,
+    "phase_rel_disk": 7.148844545032896e-07,
+    "amplitude_rmse": 1.7916377999442607e-08
+   },
+   "rytov_vs_exact": {
+    "field_rel": 0.031084329727764523,
+    "phase_rmse": 0.004123095188662638,
+    "phase_rmse_disk": 0.008611431561525428,
+    "phase_rel_disk": 0.006096816863836311,
+    "amplitude_rmse": 0.003768685283347161
+   },
+   "exact_vs_vector": {
+    "0.6": {
+     "field_rel": 0.0030159378158280863,
+     "phase_rmse": 0.0005251338806318641,
+     "phase_rmse_disk": 0.0013291770283181269,
+     "phase_rel_disk": 0.0009351604372933651,
+     "amplitude_rmse": 0.00011839283773703807
+    },
+    "0.9": {
+     "field_rel": 0.004947546271180923,
+     "phase_rmse": 0.0008337165183907773,
+     "phase_rmse_disk": 0.0010658119044916232,
+     "phase_rel_disk": 0.0007499659841986396,
+     "amplitude_rmse": 0.0002900961119171052
+    },
+    "1.2": {
+     "field_rel": 0.007732028270263634,
+     "phase_rmse": 0.0011955861409138739,
+     "phase_rmse_disk": 0.0011016256189370608,
+     "phase_rel_disk": 0.0007785531376151404,
+     "amplitude_rmse": 0.0007008962170925427
+    }
+   }
+  },
+  {
+   "radius": 6.0,
+   "dn": 0.02,
+   "centre_phase": 2.834519687449437,
+   "rytov_vs_rytov": {
+    "field_rel": 1.3386218902022977e-06,
+    "phase_rmse": 4.043978108594312e-07,
+    "phase_rmse_disk": 2.0497763796669082e-06,
+    "phase_rel_disk": 7.227618256017431e-07,
+    "amplitude_rmse": 2.6529878016533363e-08
+   },
+   "rytov_vs_exact": {
+    "field_rel": 0.0597300376930005,
+    "phase_rmse": 0.013630581187105022,
+    "phase_rmse_disk": 0.03507884334147756,
+    "phase_rel_disk": 0.012348780926877056,
+    "amplitude_rmse": 0.012008690844735274
+   },
+   "exact_vs_vector": {
+    "0.6": {
+     "field_rel": 0.0034113713723306813,
+     "phase_rmse": 0.0009304004260657544,
+     "phase_rmse_disk": 0.002697614521175274,
+     "phase_rel_disk": 0.0009472302545014525,
+     "amplitude_rmse": 0.0004211914361706123
+    },
+    "0.9": {
+     "field_rel": 0.005831727920168707,
+     "phase_rmse": 0.0014043732240840113,
+     "phase_rmse_disk": 0.002157734843578579,
+     "phase_rel_disk": 0.0007589851612006676,
+     "amplitude_rmse": 0.0010456037521236828
+    },
+    "1.2": {
+     "field_rel": 0.0097272895355117,
+     "phase_rmse": 0.0017347174268781066,
+     "phase_rmse_disk": 0.0024002038481498286,
+     "phase_rel_disk": 0.0008479776493026195,
+     "amplitude_rmse": 0.0023794483524605522
+    }
+   }
+  },
+  {
+   "radius": 6.0,
+   "dn": 0.05,
+   "centre_phase": 7.086299218623593,
+   "rytov_vs_rytov": {
+    "field_rel": 4.317799914717186e-06,
+    "phase_rmse": 1.041343850716541e-06,
+    "phase_rmse_disk": 5.287111337306096e-06,
+    "phase_rel_disk": 5.968395912944874e-06,
+    "amplitude_rmse": 6.553307372875807e-08
+   },
+   "rytov_vs_exact": {
+    "field_rel": 0.33806646453175554,
+    "phase_rmse": 0.0735678331710219,
+    "phase_rmse_disk": 0.24022932479546258,
+    "phase_rel_disk": 0.29043621066262393,
+    "amplitude_rmse": 0.04606188553992429
+   },
+   "exact_vs_vector": {
+    "0.6": {
+     "field_rel": 0.009245648016279152,
+     "phase_rmse": 0.0017081721259184063,
+     "phase_rmse_disk": 0.007199946371592191,
+     "phase_rel_disk": 0.010450907134118382,
+     "amplitude_rmse": 0.0016570016576259363
+    },
+    "0.9": {
+     "field_rel": 0.01618254346505288,
+     "phase_rmse": 0.0017049075621872255,
+     "phase_rmse_disk": 0.005502205089502853,
+     "phase_rel_disk": 0.007392414814677125,
+     "amplitude_rmse": 0.003625287510429993
+    },
+    "1.2": {
+     "field_rel": 0.03389803829823559,
+     "phase_rmse": 0.006270620397126999,
+     "phase_rmse_disk": 0.006443694275774372,
+     "phase_rel_disk": 0.007819764731469076,
+     "amplitude_rmse": 0.005461788838389871
+    }
+   }
+  }
+ ],
+ "seconds": 14.5
+}

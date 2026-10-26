@@ -1,0 +1,65 @@
+{
+ "radius": 3.0,
+ "dn": 0.02,
+ "n": 512,
+ "pixel": 0.11,
+ "pairs": {
+  "rytov: qoraholo vs qpsphere, same period": {
+   "field_rel": 1.2805681479614447e-06,
+   "phase_rmse": 1.1426471819950157e-07,
+   "phase_rmse_disk": 1.020090158593226e-06,
+   "phase_rel_disk": 7.078900974144797e-07,
+   "amplitude_rmse": 1.7081612530640174e-08
+  },
+  "born: qoraholo vs qpsphere, same period": {
+   "field_rel": 1.1972583030538948e-06,
+   "phase_rmse": 7.580251252255372e-08,
+   "phase_rmse_disk": 4.6801898843204256e-07,
+   "phase_rel_disk": 4.854247230642269e-07,
+   "amplitude_rmse": 7.182272088503393e-08
+  },
+  "rytov: qoraholo (period n) vs qpsphere (zeropad 5)": {
+   "field_rel": 0.027265764872148105,
+   "phase_rmse": 0.0024589780131444583,
+   "phase_rmse_disk": 0.00243334061079765,
+   "phase_rel_disk": 0.0016916615784512855,
+   "amplitude_rmse": 1.708161252992314e-08
+  },
+  "rytov: qoraholo (period 5n, cropped) vs qpsphere (zeropad 5)": {
+   "field_rel": 4.918171874718243e-06,
+   "phase_rmse": 4.4322233394922606e-07,
+   "phase_rmse_disk": 1.082816271558337e-06,
+   "phase_rel_disk": 7.52775289652796e-07,
+   "amplitude_rmse": 1.6986342988586195e-08
+  },
+  "qoraholo rytov vs qoraholo exact, period n": {
+   "field_rel": 0.06001175581510669,
+   "phase_rmse": 0.00413628006672829,
+   "phase_rmse_disk": 0.014492686782327258,
+   "phase_rel_disk": 0.010133319321548704,
+   "amplitude_rmse": 0.0035013040963573295
+  },
+  "qoraholo born vs qoraholo exact, period n": {
+   "field_rel": 0.5909786883214705,
+   "phase_rmse": 0.02487630036381322,
+   "phase_rmse_disk": 0.26047042138091375,
+   "phase_rel_disk": 0.18212150675123487,
+   "amplitude_rmse": 0.0434039265412394
+  },
+  "qoraholo exact: period n vs period 5n (cropped)": {
+   "field_rel": 0.013706003002264613,
+   "phase_rmse": 0.0006581560796656709,
+   "phase_rmse_disk": 0.0006517517658830733,
+   "phase_rel_disk": 0.0004564493948034691,
+   "amplitude_rmse": 0.0010477711149894835
+  },
+  "refocusing in this script (Born amplitude) vs qoraholo born": {
+   "field_rel": 1.1972595013819559e-06,
+   "phase_rmse": 7.58025138628559e-08,
+   "phase_rmse_disk": 4.680189892447472e-07,
+   "phase_rel_disk": 4.85424907103946e-07,
+   "amplitude_rmse": 7.182272100474709e-08
+  }
+ },
+ "seconds": 3.4
+}
