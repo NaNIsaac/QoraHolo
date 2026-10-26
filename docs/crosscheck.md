@@ -81,13 +81,19 @@ S2 and time dependence e^{−iωt}. It is refocused to z = 0 through the relatio
 The refocusing is re-implemented in the script and checked first: fed the first-Born amplitude,
 it reproduces `forward_fields(model="born")` to 1.2e-6 (fact).
 
-miepython's normalisations were checked in the Rayleigh limit against Bohren & Huffman's
-S = −i x³(m² − 1)/3 (fact):
+miepython's normalisations were checked at m = 1.001 and x = 0.05, in the forward direction,
+against S = −i x³(m² − 1)/3 (fact):
 
 - `norm="wiscombe"` returns the complex conjugate of that S, which is Wiscombe's e^{+iωt}
-  convention, to 0.1 %;
+  convention, to 0.07 %;
 - `norm="bohren"` returns −2 times it, because that option normalises the phase function and not
   the amplitudes.
+
+Bohren & Huffman's small-sphere amplitude is S = −i x³(m² − 1)/(m² + 2). The reference above
+replaces m² + 2 by 3, so the 0.07 % agreement holds only because the Lorentz-Lorenz factor
+(m² + 2)/3 is 1.0007 at m = 1.001. At the main point's m = 1.015 that factor alone would be a 1 %
+difference. The check fixes the sign, the conjugation and the factor of 2; it does not test the
+amplitudes at the main point, which come from the full Mie series.
 
 The script therefore uses the conjugate of the `wiscombe` amplitudes. Using `bohren` directly
 gives a field −2× too large, and using `wiscombe` unconjugated gives its complex conjugate.
@@ -115,9 +121,12 @@ Main sphere, both fields low-passed to the NA, metric against the vector field (
   therefore grows with the angles the pupil admits.
 - A smaller sphere scatters more of its light at wide angles, so the gap is larger for it. This
   matches the sweep: 4.4 % at 1 µm against 0.7 % at 6 µm, both at NA 1.2.
-- For the main sphere, the scalar model's error at NA 1.2 (1.6 %) is a quarter of the Rytov
-  approximation's (6.0 %). In the reconstruction chain, the Rytov step, not the scalar model, is
-  the larger error.
+- Which error is larger depends on Δn. At the main point (Δn = 0.02), the scalar model's error at
+  NA 1.2 (1.6 %) is a quarter of the Rytov approximation's (6.0 %), so there the Rytov step is the
+  larger error in the reconstruction chain. At Δn = 5e-4 the order reverses: Rytov is 0.2 % from
+  the scalar exact field, below the 1.4 % scalar-vector gap of the same sphere at NA 1.2. Rytov's
+  error grows with Δn while the scalar gap barely does, so for weakly scattering objects at high
+  NA the scalar model is the larger error.
 
 ## Sweep
 

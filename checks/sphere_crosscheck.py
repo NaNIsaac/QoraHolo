@@ -116,8 +116,9 @@ def born_amplitude(radius: float, dn: float):
 def mie_amplitude(radius: float, dn: float):
     """Co-polarised (x) far-field amplitude of vector Mie for x-polarised light,
     f_x = (i / k_m)(S2 cos θ cos² φ + S1 sin² φ) with Bohren & Huffman's S1, S2 (e^{-iωt}).
-    miepython's norm="wiscombe" amplitudes are their complex conjugates (Wiscombe's e^{+iωt});
-    in the Rayleigh limit they give conj(-i x³ (m² - 1) / 3) to 0.1%, while norm="bohren" is a
+    miepython's norm="wiscombe" amplitudes are their complex conjugates (Wiscombe's e^{+iωt}):
+    at m = 1.001, x = 0.05 they give conj(-i x³ (m² - 1) / 3) to 0.07%, which equals Bohren &
+    Huffman's -i x³ (m² - 1) / (m² + 2) only because (m² + 2) / 3 ≈ 1 there. norm="bohren" is a
     phase-function normalisation, -2 times that."""
     import miepython
 
