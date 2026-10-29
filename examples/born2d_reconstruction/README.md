@@ -9,6 +9,34 @@ checks both.
 python examples/born2d_reconstruction/run.py     # about 30 s, prints the numbers below
 ```
 
+![Coverage, recovered index, point-spread function and core δn of the born2d example](figure.png)
+
+**What the data carry and what the reconstruction recovers.** All panels are computed from
+synthetic data, not measured.
+- **(a)** The spatial frequencies (Kx, Kz) in cycles/µm that the 31 illuminations measure. Each
+  line is one illumination's Ewald arc inside the detection pupil (NA 1.2, λ 0.532 µm, water).
+  Grey is not measured. The gaps above and below Kz = 0 at small |Kx| are the missing cone, and
+  the dotted lines mark the lateral limit |Kx| = 3.91.
+- **(b)** Index contrast δn of the phantom (truth), after 300 Landweber iterations, and after
+  300 iterations with the prior n ≥ n_m, all from noiseless first-Born data. x is lateral, z the
+  optical axis. The dashed circle is the 0.7 µm core over which (d) averages. Without a prior
+  the disc is long along z, low in its core and ringed by a positive halo.
+- **(c)** Landweber response to a point at the centre, along x and z, on the 0.1 µm grid. The
+  FWHMs (Fourier-interpolated) are 0.151 µm and 0.502 µm. Along x the expectation is 0.153 µm
+  for a uniformly filled band.
+- **(d)** Mean δn in the core of the 2 µm disc (truth 0.004). The information limit is the
+  minimum-norm object with the same data, so the gap to it is what the data do not carry. BPM
+  data, from a different forward model, measure the Born model error. The rows match the
+  tables below.
+
+`figure.py` draws it with `run.py`'s own functions and stops if a plotted number leaves its
+`expected.json` tolerance or two legend entries collide under simulated colour-vision deficiency
+(cvdkit). Style: qoraplot `house`, paper size.
+
+```
+uv run --group figures python examples/born2d_reconstruction/figure.py   # about 40 s, writes figure.png
+```
+
 ## Setup
 
 | | |

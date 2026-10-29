@@ -226,6 +226,13 @@ The first Born approximation holds while the phase the object adds is small,
   2.1 % at |δn|·k0·L = 0.047 and 4.2 % at 0.094, proportional to δn as expected of the
   neglected next order.
 
+[`examples/born2d_reconstruction`](examples/born2d_reconstruction/README.md) uses it on a known
+object (synthetic data): k-space coverage and the missing cone, a 0.151 / 0.502 µm point-spread
+function, and a core δn of 0.00258 against 0.004 without a prior (0.00305 is all the data
+carry) and 0.00410 with n ≥ n_m.
+
+![born2d example: coverage, recovered index, point-spread function and core δn](examples/born2d_reconstruction/figure.png)
+
 ## Array conventions
 
 | | |
