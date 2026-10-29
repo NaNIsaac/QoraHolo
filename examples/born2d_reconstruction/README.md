@@ -9,6 +9,47 @@ checks both.
 python examples/born2d_reconstruction/run.py     # about 30 s, prints the numbers below
 ```
 
+![Coverage, recovered index, point-spread function and core δn of the born2d example](figure.png)
+
+**What the data carry and what the reconstruction recovers.** All panels are computed from
+synthetic data, not measured. δn is in refractive-index units, shown as δn × 10³.
+- **(a)** The spatial frequencies (Kx, Kz) in cycles/µm that the 31 illuminations (NA −0.9 to
+  0.9) measure through the detection pupil (NA 1.2, λ 0.532 µm, water). Kx and Kz are on equal
+  scales, so the axial coverage (2.0 cycles/µm) shows as about four times narrower than the
+  lateral one (7.8). Each line is one illumination's Ewald arc, and the band between neighbouring
+  arcs counts as measured because they are closer than one frequency bin. Grey is not measured.
+  The gaps above and below Kz = 0 at small |Kx| are the missing cone. The dotted lines mark
+  |Kx| = 3.91, which is (NA + NA_ill)/λ = 3.95 on the 0.156 cycles/µm grid.
+- **(b)** δn of the phantom (truth), after 300 Landweber iterations, and after 300 iterations
+  with the prior n ≥ n_m, all from noiseless first-Born data. x is lateral, z the optical axis.
+  The dashed circle, radius 0.7 µm, is the core that (d) averages. Without a prior the disc is
+  long along z and low in its core. The missing contrast reappears as positive lobes above and
+  below the disc (+0.0011) and negative lobes beside it (down to −0.0021). The fine vertical
+  stripes are probably ringing at the lateral band limit.
+- **(c)** Landweber response to a point at the centre, along x and z. Lines are the Fourier
+  interpolation on which the FWHMs are measured (0.151 µm and 0.502 µm); markers are the 0.1 µm
+  samples. Along x a uniformly filled band would give 0.153 µm. The deep sidelobes (−0.40 against
+  −0.22 for a sinc) show that the band is weighted toward high |Kx|, so the near match of the
+  widths is not strong evidence on its own. Along z the response is 3.3 times wider than along x;
+  the coverage ratio Kx_max / max|Kz| predicts 2.9.
+- **(d)** Mean δn in the core (truth 4.00 × 10⁻³), noiseless data. The minimum-norm object is
+  the limit of Landweber as the iterations go to infinity: the most that a reconstruction
+  without a prior reaches from these data (singular values below 1e-5 of the largest dropped;
+  3.15 × 10⁻³ at 1e-10). The n ≥ n_m prior goes past it by adding information the data do not
+  carry. That is a best case: the object is sparse and positive on a background of exactly n_m.
+  With noise and with a region below n_m it does worse (see below). BPM data, from a different
+  forward model, measure the Born model error. The rows match the tables below.
+
+`figure.py` draws it with `run.py`'s own functions and stops if a plotted number leaves its
+`expected.json` tolerance or two legend entries collide under simulated colour-vision deficiency
+(cvdkit). Style: qoraplot `house`.
+
+```
+uv run --group figures python examples/born2d_reconstruction/figure.py   # about 25 s, writes figure.png
+```
+
+The first `uv run` also builds the C++ extension (about 30 s).
+
 ## Setup
 
 | | |
@@ -146,9 +187,12 @@ core (truth 0.004):
 - **Axial elongation.** The 2 µm disc is 1.85 µm wide along x and 2.74 µm along z at half
   maximum, 37 % longer axially. This is the visible form of the missing cone; the PSF itself
   is 3.3 times longer along z than along x.
-- **Low core, positive halo.** The core is low (above), and the deficit reappears around the
-  disc. In the ring 1.2 to 1.6 µm from its centre, where the true contrast is 0, the mean
-  recovered δn is +0.00032, 8 % of the disc's contrast.
+- **Low core, lobes of both signs around it.** The core is low (above), and the deficit
+  reappears around the disc. In the ring 1.2 to 1.6 µm from its centre, where the true contrast
+  is 0, the mean recovered δn is +0.00032, 8 % of the disc's contrast. That mean hides two signs:
+  the ring is positive above and below the disc (+0.0011 within 30° of the z axis) and negative
+  beside it (−0.0009 within 30° of the x axis; the map's minimum, −0.0021, is on the z = 0 row).
+  A third of the ring's pixels are negative.
 - **Data residual.** After 300 iterations, ‖A x − y‖/‖y‖ = 1.03 % on noiseless data. That is
   the early-stopping filter, not noise.
 
