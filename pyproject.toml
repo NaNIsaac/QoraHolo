@@ -36,6 +36,13 @@ check = [
 ]
 dev = ["pytest>=8"]
 examples = ["matplotlib>=3.9"]
+# The shared figure style (qoraplot) and colour-vision checks (cvdkit), from their repositories
+# until they are on PyPI.
+figures = ["matplotlib>=3.9", "qoraplot", "cvdkit"]
+
+[tool.uv.sources]
+qoraplot = { git = "https://github.com/NaNIsaac/qoraplot", branch = "main" }
+cvdkit = { git = "https://github.com/NaNIsaac/cvdkit", branch = "main" }
 
 [tool.scikit-build]
 minimum-version = "build-system.requires"
