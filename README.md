@@ -35,6 +35,14 @@ functions; the TV reconstruction took 0.42 s and 10.3 s. The TV weight (1e-2, th
 was picked from a sweep on this phantom, so the TV numbers are tuned to it. Script:
 `examples/readme_figure.py`.
 
+## Findings
+
+- [F5: The prior n ≥ n_m recovers the core index that the data do not carry, within 5 % up to moderate noise](docs/FINDINGS.md#f5-the-prior-n--n_m-recovers-the-core-index-that-the-data-do-not-carry-within-5--up-to-moderate-noise)
+- [F4: Without a prior, most of the missing index is information the data do not carry](docs/FINDINGS.md#f4-without-a-prior-most-of-the-missing-index-is-information-the-data-do-not-carry)
+- [F3: The sphere forward models agree with independent codes; Rytov's error grows with Δn](docs/FINDINGS.md#f3-the-sphere-forward-models-agree-with-independent-codes-rytovs-error-grows-with-δn)
+
+[All findings →](docs/FINDINGS.md)
+
 ## Quick start
 
 Requires CMake 3.28+, Ninja (the presets use it), a C++20 compiler (gcc 13+, MSVC 2022),
