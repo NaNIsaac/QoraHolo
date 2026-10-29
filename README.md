@@ -35,6 +35,15 @@ functions; the TV reconstruction took 0.42 s and 10.3 s. The TV weight (1e-2, th
 was picked from a sweep on this phantom, so the TV numbers are tuned to it. Script:
 `examples/readme_figure.py`.
 
+## Start with the evidence
+
+- **What is reconstructed:** [synthetic hologram-to-volume example](docs/reconstruction.png) · [script](examples/readme_figure.py), including phantom parameters and output comparisons below.
+- **What the tests establish:** [research findings](docs/FINDINGS.md) — independent forward-model comparisons and where priors are necessary.
+- **How fast it runs:** [benchmark](#benchmark) — consult its hardware, workload and accuracy conditions.
+- **What remains unsupported:** [scope and limitations](#what-this-does-not-do).
+
+The representative reconstruction is **synthetic**; the TV regularization weight was selected on this phantom. It is not a measured-sample validation.
+
 ## Findings
 
 - [F3: The sphere forward models agree with independent codes; Rytov's error grows with Δn](docs/FINDINGS.md#f3-the-sphere-forward-models-agree-with-independent-codes-rytovs-error-grows-with-δn)
