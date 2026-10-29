@@ -227,9 +227,11 @@ The first Born approximation holds while the phase the object adds is small,
   neglected next order.
 
 [`examples/born2d_reconstruction`](examples/born2d_reconstruction/README.md) uses it on a known
-object (synthetic data): k-space coverage and the missing cone, a 0.151 / 0.502 µm point-spread
-function, and a core δn of 0.00258 against 0.004 without a prior (0.00305 is all the data
-carry) and 0.00410 with n ≥ n_m.
+object (synthetic data). It shows the k-space coverage and the missing cone, and a PSF FWHM of
+0.151 µm lateral and 0.502 µm axial. The core δn, truth 0.004, comes out at 0.00258 without a
+prior; the minimum-norm object with the same data reaches 0.00305. With n ≥ n_m it is 0.00410
+on noiseless data. That is a best case: with noise of the data's rms it drops to 0.00376
+(−6 %), and a region below n_m is clipped to n_m. The example has the noise and n < n_m cases.
 
 ![born2d example: coverage, recovered index, point-spread function and core δn](examples/born2d_reconstruction/figure.png)
 
