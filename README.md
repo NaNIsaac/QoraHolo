@@ -37,9 +37,9 @@ was picked from a sweep on this phantom, so the TV numbers are tuned to it. Scri
 
 ## Findings
 
+- [F3: The sphere forward models agree with independent codes; Rytov's error grows with Δn](docs/FINDINGS.md#f3-the-sphere-forward-models-agree-with-independent-codes-rytovs-error-grows-with-δn)
 - [F5: The prior n ≥ n_m recovers the core index that the data do not carry, within 5 % up to moderate noise](docs/FINDINGS.md#f5-the-prior-n--n_m-recovers-the-core-index-that-the-data-do-not-carry-within-5--up-to-moderate-noise)
 - [F4: Without a prior, most of the missing index is information the data do not carry](docs/FINDINGS.md#f4-without-a-prior-most-of-the-missing-index-is-information-the-data-do-not-carry)
-- [F3: The sphere forward models agree with independent codes; Rytov's error grows with Δn](docs/FINDINGS.md#f3-the-sphere-forward-models-agree-with-independent-codes-rytovs-error-grows-with-δn)
 
 [All findings →](docs/FINDINGS.md)
 

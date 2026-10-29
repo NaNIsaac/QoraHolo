@@ -4,6 +4,15 @@ What this repository has shown so far, newest first. Each item links its evidenc
 
 Every result here comes from synthetic data and model comparisons; none involves a measurement.
 
+## F3: The sphere forward models agree with independent codes; Rytov's error grows with Δn
+- Question: Do QoraHolo's sphere forward fields agree with independent codes (qpsphere, vector Mie theory)?
+- Result: Rytov agrees with qpsphere to 1.3e-6 at the main point and to at most 7.3e-5 over all 30 sweep points, and first Born to 1.2e-6. The scalar `exact` model differs from the co-polarised vector Mie field by 0.2 % at NA 0.2 and 1.6 % at NA 1.2.
+- Figure: none
+- Data and script: [checks/results/](../checks/results), [sphere_crosscheck.py](../checks/sphere_crosscheck.py)
+- Status: checked
+- Limits: One on-axis illumination, no objective, synthetic only; the vector reference shares QoraHolo's refocusing relation but no code with it. Checked: two independent codes; [test_crosscheck.py](../python/tests/test_crosscheck.py).
+- Report: [Cross-check of the sphere forward models](crosscheck.md) (2026-10-26)
+
 ## F5: The prior n ≥ n_m recovers the core index that the data do not carry, within 5 % up to moderate noise
 - Question: Can a positivity prior (n ≥ n_m) recover the core index that a 2D first-Born reconstruction without a prior leaves out?
 - Result: On noiseless Born data the core δn comes out at 0.00410 against a truth of 0.004 (0.00408 on BPM data). With BPM data and noise it stays within 5 % of the truth at η ≤ 0.3 and is 0.00376 ± 0.00022 (−6 %) at η = 1.0.
@@ -21,15 +30,6 @@ Every result here comes from synthetic data and model comparisons; none involves
 - Status: checked
 - Limits: 2D only, scalar model, synthetic data; Landweber without a prior is the baseline, not a recommended method. The information limit depends on the singular-value cutoff (0.00305 at 1e-5, 0.00315 at 1e-10). Checked: [test_example_born2d_reconstruction.py](../python/tests/test_example_born2d_reconstruction.py) against the physical expectations in expected.json; BPM data measure the Born model error.
 - Report: [Reconstructing a known 2D object with the first Born operator](../examples/born2d_reconstruction/README.md#recovered-index-where-the-missing-36--goes) (2026-10-22)
-
-## F3: The sphere forward models agree with independent codes; Rytov's error grows with Δn
-- Question: Do QoraHolo's sphere forward fields agree with independent codes (qpsphere, vector Mie theory)?
-- Result: Rytov agrees with qpsphere to 1.3e-6 at the main point and to at most 7.3e-5 over all 30 sweep points, and first Born to 1.2e-6. The scalar `exact` model differs from the co-polarised vector Mie field by 0.2 % at NA 0.2 and 1.6 % at NA 1.2.
-- Figure: none
-- Data and script: [checks/results/](../checks/results), [sphere_crosscheck.py](../checks/sphere_crosscheck.py)
-- Status: checked
-- Limits: One on-axis illumination, no objective, synthetic only; the vector reference shares QoraHolo's refocusing relation but no code with it. Checked: two independent codes; [test_crosscheck.py](../python/tests/test_crosscheck.py).
-- Report: [Cross-check of the sphere forward models](crosscheck.md) (2026-10-26)
 
 ## F2: A BPM inversion halves the RMSE of the best first-order reconstruction on multiple-scattering phantoms
 - Question: How much do multiple-scattering (BPM) reconstructions improve on first-order ones for a large bead and three stacked beads?
