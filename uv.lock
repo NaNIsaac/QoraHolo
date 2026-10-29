@@ -898,15 +898,15 @@ check = [
 dev = [{ name = "pytest", specifier = ">=8" }]
 examples = [{ name = "matplotlib", specifier = ">=3.9" }]
 figures = [
-    { name = "cvdkit", git = "https://github.com/NaNIsaac/cvdkit?branch=main" },
+    { name = "cvdkit", git = "https://github.com/NaNIsaac/cvdkit?rev=8c3566008e861e70e97b6dec62071d3ddc3ac453" },
     { name = "matplotlib", specifier = ">=3.9" },
-    { name = "qoraplot", git = "https://github.com/NaNIsaac/qoraplot?branch=main" },
+    { name = "qoraplot", git = "https://github.com/NaNIsaac/qoraplot?rev=4133d42d873132df4e69111652ad0f98fafa5f22" },
 ]
 
 [[package]]
 name = "qoraplot"
 version = "0.1.0"
-source = { git = "https://github.com/NaNIsaac/qoraplot?branch=main#4133d42d873132df4e69111652ad0f98fafa5f22" }
+source = { git = "https://github.com/NaNIsaac/qoraplot?rev=4133d42d873132df4e69111652ad0f98fafa5f22#4133d42d873132df4e69111652ad0f98fafa5f22" }
 dependencies = [
     { name = "cvdkit" },
     { name = "matplotlib" },

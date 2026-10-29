@@ -41,8 +41,8 @@ examples = ["matplotlib>=3.9"]
 figures = ["matplotlib>=3.9", "qoraplot", "cvdkit"]
 
 [tool.uv.sources]
-qoraplot = { git = "https://github.com/NaNIsaac/qoraplot", branch = "main" }
-cvdkit = { git = "https://github.com/NaNIsaac/cvdkit", branch = "main" }
+qoraplot = { git = "https://github.com/NaNIsaac/qoraplot", rev = "4133d42d873132df4e69111652ad0f98fafa5f22" }
+cvdkit = { git = "https://github.com/NaNIsaac/cvdkit", rev = "8c3566008e861e70e97b6dec62071d3ddc3ac453" }
 
 [tool.scikit-build]
 minimum-version = "build-system.requires"
