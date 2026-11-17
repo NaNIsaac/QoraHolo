@@ -17,7 +17,7 @@ jobs:
       - uses: pypa/cibuildwheel@v4.3.5
       - uses: actions/upload-artifact@v7
         with:
-          name: wheels-${{ matrix.os }}
+          name: dist-wheels-${{ matrix.os }}
           path: wheelhouse/*.whl
 
   sdist:
@@ -28,20 +28,35 @@ jobs:
       - run: uv build --sdist
       - uses: actions/upload-artifact@v7
         with:
-          name: sdist
+          name: dist-sdist
           path: dist/*.tar.gz
+
+  # The files above, checked for secrets, credential file names and home-folder paths;
+  # cibuildwheel builds them, so the gates only scan (leak-only)
+  gates:
+    needs: [wheels, sdist]
+    uses: NaNIsaac/.github/.github/workflows/publish-gates.yml@3c147080c0d6968e7ec3fa6e5a848f5ae7bce7c8
+    permissions:
+      contents: read
+    with:
+      leak-only-artifacts: dist-*
+      # GitHub runner home that delvewheel records in the Windows wheel (DELVEWHEEL)
+      path-allowlist: |
+        C:\Users\runneradmin
 
   publish:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [wheels, sdist]
+    needs: gates
     runs-on: ubuntu-latest
     environment: release
     permissions:
       id-token: write  # PyPI Trusted Publishing
       contents: read
     steps:
+      # The same artifacts the gates checked
       - uses: actions/download-artifact@v8
         with:
+          pattern: dist-*
           path: dist
           merge-multiple: true
       - uses: pypa/gh-action-pypi-publish@release/v1
