@@ -153,6 +153,19 @@ p.set_background(backgrounds)
 ri = p.run(holograms)  # p.timings: milliseconds per stage of the last run
 ```
 
+## Documentation
+
+[The QoraHolo page on the documentation hub](https://nanisaac.github.io/docs/qoraholo/) is built from this
+repository's `docs/`, and the same pages read on GitHub:
+
+- [Overview](docs/index.md) — the pipeline, stage by stage
+- [Architecture](docs/ARCHITECTURE.md) — how the C++ and CUDA code is laid out
+- [Cross-check of the sphere models](docs/crosscheck.md) — QoraHolo against two independent codes
+- [The TV solver on the GPU](docs/tv_kernels.md) — the kernels and their measurements
+- [Findings](docs/FINDINGS.md), [the paper draft](docs/PAPER.md) and [what BCDI and ODT share](docs/bcdi_vs_odt.md)
+
+The sidebars and the list of published pages come from [docs/nav.json](docs/nav.json).
+
 ## Multiple scattering: beam propagation
 
 Born and Rytov assume each point of the sample sees the incident wave. In a large or
@@ -558,3 +571,7 @@ Design notes and the data flow are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.m
   elimination in digital off-axis holography", Appl. Opt. 39, 4070 (2000).
 - Ç. Candan, "A method for fine resolution frequency estimation from three DFT samples",
   IEEE Signal Process. Lett. 18, 351 (2011).
+
+## License
+
+MIT, see [LICENSE](LICENSE).
